@@ -93,6 +93,30 @@ fn font(italic: bool) -> &'static Font {
     cell.get_or_init(|| Font::from_bytes(bytes, fontdue::FontSettings::default()).expect("Tinos"))
 }
 
+/// Font for the volume number inside each dial: the system-installed Eurostile when
+/// present (not bundled: it is a commercial font), otherwise the bundled Tinos Bold.
+fn volume_font() -> &'static Font {
+    static VOLUME: OnceLock<Font> = OnceLock::new();
+    VOLUME.get_or_init(|| {
+        std::process::Command::new("fc-match")
+            .args(["-f", "%{family}\n%{file}", "Eurostile"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .and_then(|out| {
+                let mut lines = out.lines();
+                let family = lines.next()?.to_lowercase();
+                let file = lines.next()?.to_string();
+                family.contains("eurostile").then_some(file)
+            })
+            .and_then(|file| std::fs::read(file).ok())
+            .and_then(|bytes| Font::from_bytes(bytes, fontdue::FontSettings::default()).ok())
+            .unwrap_or_else(|| {
+                Font::from_bytes(TINOS_BOLD, fontdue::FontSettings::default()).expect("Tinos")
+            })
+    })
+}
+
 pub struct ScreenKit {
     base: RgbImage,
     splash_img: RgbImage,
@@ -526,18 +550,15 @@ fn draw_dial(face: Face, volume: u8, meter: u8) -> RgbaImage {
         Face::ChatMuted => ("CHAT".to_string(), 18.0, RED),
         Face::MediaMuted => ("MEDIA".to_string(), 16.0, RED),
     };
-    draw_text(
-        &mut img,
-        &label,
-        16,
-        58,
-        w - 32,
-        52,
-        false,
-        size,
-        colour,
-        true,
-    );
+    if face == Face::Volume {
+        // Only a Regular Eurostile is installed, so thicken it by stamping it on a
+        // 2x2 pixel grid (a simple faux bold).
+        for (dx, dy) in [(0u32, 0u32), (1, 0), (0, 1), (1, 1)] {
+            draw_text_with(&mut img, &label, 16 + dx, 58 + dy, w - 32, 52, volume_font(), size, colour, true);
+        }
+    } else {
+        draw_text_with(&mut img, &label, 16, 58, w - 32, 52, font(false), size, colour, true);
+    }
     img
 }
 
@@ -680,26 +701,6 @@ fn fill_disc(img: &mut RgbaImage, cx: i32, cy: i32, r: u32, colour: Rgba<u8>) {
     }
 }
 
-pub fn text_width(text: &str, italic: bool, size: f32) -> f32 {
-    let f = font(italic);
-    text.chars().map(|c| f.metrics(c, size).advance_width).sum()
-}
-
-pub fn fit_text(text: &str, italic: bool, size: f32, max: f32) -> String {
-    if text_width(text, italic, size) <= max {
-        return text.to_string();
-    }
-    let mut chars: Vec<char> = text.chars().collect();
-    while !chars.is_empty() {
-        chars.pop();
-        let candidate = chars.iter().collect::<String>().trim_end().to_string() + "...";
-        if text_width(&candidate, italic, size) <= max {
-            return candidate;
-        }
-    }
-    "...".into()
-}
-
 #[allow(clippy::too_many_arguments)]
 fn draw_text(
     img: &mut RgbaImage,
@@ -713,12 +714,43 @@ fn draw_text(
     colour: Rgba<u8>,
     center: bool,
 ) {
-    let text = fit_text(text, italic, size, w as f32);
-    let f = font(italic);
+    draw_text_with(img, text, x, y, w, h, font(italic), size, colour, center);
+}
+
+fn text_width_with(f: &Font, text: &str, size: f32) -> f32 {
+    text.chars().map(|c| f.metrics(c, size).advance_width).sum()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_text_with(
+    img: &mut RgbaImage,
+    text: &str,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    f: &Font,
+    size: f32,
+    colour: Rgba<u8>,
+    center: bool,
+) {
+    let mut text = text.to_string();
+    if text_width_with(f, &text, size) > w as f32 {
+        let mut chars: Vec<char> = text.chars().collect();
+        text = "...".into();
+        while !chars.is_empty() {
+            chars.pop();
+            let candidate = chars.iter().collect::<String>().trim_end().to_string() + "...";
+            if text_width_with(f, &candidate, size) <= w as f32 {
+                text = candidate;
+                break;
+            }
+        }
+    }
     let lm = f.horizontal_line_metrics(size).expect("line metrics");
     let total = lm.ascent - lm.descent;
     let baseline = y as f32 + (h as f32 - total) / 2.0 + lm.ascent;
-    let width = text_width(&text, italic, size);
+    let width = text_width_with(f, &text, size);
     let mut pen = if center {
         x as f32 + ((w as f32 - width) / 2.0).max(0.0)
     } else {
