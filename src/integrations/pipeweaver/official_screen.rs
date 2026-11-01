@@ -701,6 +701,28 @@ fn fill_disc(img: &mut RgbaImage, cx: i32, cy: i32, r: u32, colour: Rgba<u8>) {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn text_width(text: &str, italic: bool, size: f32) -> f32 {
+    let f = font(italic);
+    text.chars().map(|c| f.metrics(c, size).advance_width).sum()
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn fit_text(text: &str, italic: bool, size: f32, max: f32) -> String {
+    if text_width(text, italic, size) <= max {
+        return text.to_string();
+    }
+    let mut chars: Vec<char> = text.chars().collect();
+    while !chars.is_empty() {
+        chars.pop();
+        let candidate = chars.iter().collect::<String>().trim_end().to_string() + "...";
+        if text_width(&candidate, italic, size) <= max {
+            return candidate;
+        }
+    }
+    "...".into()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn draw_text(
     img: &mut RgbaImage,
