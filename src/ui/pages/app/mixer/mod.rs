@@ -33,14 +33,16 @@ pub(super) const MODAL_INPUT: &str = "mixer-modal-input";
 const RELEASE_GRACE: Duration = Duration::from_millis(400);
 const ERROR_TIMEOUT: Duration = Duration::from_secs(8);
 
-/// The fallback switch: use the old Beacn Mixer window instead of this page.
-/// `BEACN_LEGACY_MIXER=1`, or `~/.config/beacn-utility/legacy-mixer` exists.
+/// The fallback switch: use the old mixer window instead of this page.
+/// `GENOBEACON_LEGACY_MIXER=1` (or the old `BEACN_LEGACY_MIXER`), or
+/// `~/.config/genobeacon/legacy-mixer` (falling back to the old config dir).
 pub fn legacy_mixer() -> bool {
-    if let Ok(v) = std::env::var("BEACN_LEGACY_MIXER") {
-        return !matches!(v.trim(), "" | "0" | "false" | "no");
+    if std::env::var_os("GENOBEACON_LEGACY_MIXER").is_some()
+        || std::env::var_os("BEACN_LEGACY_MIXER").is_some()
+    {
+        return crate::env_enabled("GENOBEACON_LEGACY_MIXER", "BEACN_LEGACY_MIXER");
     }
-    directories::ProjectDirs::from("", "", "beacn-utility")
-        .is_some_and(|dirs| dirs.config_dir().join("legacy-mixer").exists())
+    crate::config_file("legacy-mixer").is_some_and(|path| path.exists())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -63,8 +65,7 @@ impl Tab {
     ];
 
     fn path() -> Option<std::path::PathBuf> {
-        directories::ProjectDirs::from("", "", "beacn-utility")
-            .map(|dirs| dirs.config_dir().join("mixer-tab"))
+        crate::config_file("mixer-tab")
     }
 
     /// The tab that was open last time (`~/.config/beacn-utility/mixer-tab`)

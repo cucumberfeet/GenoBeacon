@@ -66,7 +66,7 @@ impl MixerPage {
             "Audio engine",
             row![
                 container(Space::new().width(8).height(8)).style(style::fill(MIX_A, 4.0)),
-                text("Connected. When Beacn runs as beacn.service it starts and stops the engine itself.").color(TEXT),
+                text("Connected. When GenoBeacon runs as genobeacon.service it starts and stops the engine itself.").color(TEXT),
             ]
             .spacing(8)
             .align_y(Alignment::Center)

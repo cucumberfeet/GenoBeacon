@@ -52,8 +52,8 @@ impl ControllerPage for About {
 
     fn view(&self, state: &ControlState) -> iced::Element<'_, PageMessage> {
         let title = match state.device_definition.device_type {
-            DeviceType::BeacnMix => "About Beacn Mix",
-            DeviceType::BeacnMixCreate => "About Beacn Mix Create",
+            DeviceType::BeacnMix => "About BEACN Mix",
+            DeviceType::BeacnMixCreate => "About BEACN Mix Create",
             _ => unreachable!(),
         };
 

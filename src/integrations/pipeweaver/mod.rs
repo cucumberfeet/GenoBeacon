@@ -49,11 +49,6 @@ const PENDING_TIMEOUT: Duration = Duration::from_millis(150);
 // forward by the whole gap, just carry on from where they were.
 const MAX_FRAME_DT: f32 = 0.1;
 
-static PW_SPLASH: LazyLock<Arc<Vec<u8>>> = LazyLock::new(|| {
-    let bytes = include_bytes!("../../../resources/screens/beacn-pipeweaver.jpg");
-    Arc::new(bytes.to_vec())
-});
-
 // Simple method that checks whether pipeweaver is running, and if so, launches the UI
 pub fn launch_pipeweaver_ui() -> bool {
     #[cfg(not(target_arch = "wasm32"))]
@@ -113,20 +108,20 @@ pub fn launch_pipeweaver_ui() -> bool {
 mod channel;
 mod helpers;
 mod layout;
-pub(crate) mod official;
 pub(crate) mod official_screen;
 mod pieces;
 
+// GenoBeacon button light: blue for the personal mix, red for the audience mix.
 const COLOUR_MIX_A: RGBA = RGBA {
-    red: 89,
-    green: 177,
-    blue: 182,
+    red: 61,
+    green: 126,
+    blue: 255,
     alpha: 255,
 };
 const COLOUR_MIX_B: RGBA = RGBA {
-    red: 244,
-    green: 124,
-    blue: 36,
+    red: 225,
+    green: 6,
+    blue: 0,
     alpha: 255,
 };
 
@@ -323,15 +318,15 @@ impl PipeweaverHandler {
         info!("Pipeweaver Manager Terminated");
         if clean_stop {
             self.draw_splash().await;
-            self.draw_status("Beacn Utility Stopped").await;
+            self.draw_status("GenoBeacon stopped").await;
             self.disable_buttons().await;
         }
     }
 
     async fn draw_splash(&mut self) {
-        let splash = official_screen::kit()
-            .and_then(|kit| kit.splash(None).ok())
-            .unwrap_or_else(|| PW_SPLASH.clone());
+        let Some(splash) = official_screen::kit().and_then(|kit| kit.splash(None).ok()) else {
+            return;
+        };
         let message = BeacnMessage::Image(0, 0, splash);
         let _ = self.send_message(message).await;
 
@@ -949,9 +944,6 @@ impl PipeweaverHandler {
         let Some(kit) = official_screen::kit() else {
             return Ok(out);
         };
-        let Some(pack) = official::pack() else {
-            return Ok(out);
-        };
         if index >= self.screen.slots.len() {
             return Ok(out);
         }
@@ -960,6 +952,7 @@ impl PipeweaverHandler {
         let button_pos = (official_screen::button_x(index), official_screen::BUTTON_Y);
         let is_create = self.device_type == DeviceType::BeacnMixCreate;
         let mix = self.active_mix;
+        let (dx, dy) = official_screen::dial_offset();
 
         // Gather everything that needs the daemon status before borrowing the screen model
         let id = self.devices_shown.get(index).cloned();
@@ -1026,14 +1019,9 @@ impl PipeweaverHandler {
 
         if shown.dial != Some(dial) || shown.face != Some(face) {
             let (_, volume, meter) = dial;
-            let (dx, dy) = pack.centre_offset((official_screen::CARD_W, official_screen::TILE_H));
             let px = (card_pos.0 as i32 + dx).max(0) as u32;
             let py = (card_pos.1 as i32 + dy).max(0) as u32;
-            out.push(BeacnMessage::Image(
-                px,
-                py,
-                kit.tile(pack, face, volume, meter),
-            ));
+            out.push(BeacnMessage::Image(px, py, kit.tile(face, volume, meter)));
             shown.dial = Some(dial);
             shown.face = Some(face);
         }
@@ -1113,7 +1101,10 @@ impl PipeweaverHandler {
 
     async fn apply_audience_defaults_inner(&mut self, stream: &mut WebSocket) -> Result<()> {
         if self.device_type != DeviceType::BeacnMixCreate
-            || std::env::var("BEACN_NO_AUDIENCE_DEFAULT").is_ok_and(|v| !v.is_empty() && v != "0")
+            || crate::env_enabled(
+                "GENOBEACON_NO_AUDIENCE_DEFAULT",
+                "BEACN_NO_AUDIENCE_DEFAULT",
+            )
         {
             return Ok(());
         }
@@ -1153,7 +1144,9 @@ impl PipeweaverHandler {
             return Ok(());
         }
 
-        let file = crate::get_config_path()?.join("audience-defaults.json");
+        let Some(file) = crate::config_file("audience-defaults.json") else {
+            return Ok(());
+        };
         let mut done: HashSet<String> = std::fs::read_to_string(&file)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
@@ -1848,7 +1841,7 @@ fn find_device<'a>(
 fn screen_mirror(x: u32, y: u32, jpeg: &[u8]) {
     use std::sync::Mutex;
     static MIRROR: LazyLock<Option<(std::path::PathBuf, Mutex<RgbaImage>)>> = LazyLock::new(|| {
-        std::env::var_os("BEACN_SCREEN_MIRROR").map(|p| {
+        crate::env_os("GENOBEACON_SCREEN_MIRROR", "BEACN_SCREEN_MIRROR").map(|p| {
             (
                 std::path::PathBuf::from(p),
                 Mutex::new(RgbaImage::new(800, 480)),

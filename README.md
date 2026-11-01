@@ -1,63 +1,30 @@
-# beacn-suite
+# GenoBeacon
 
-An official-look Mix Create screen and a single, merged **Beacn** app for Linux:
-[beacn-utility](https://github.com/beacn-on-linux/beacn-utility) (device control) and
-[Pipeweaver](https://github.com/pipeweaver/pipeweaver) (audio routing/mixer) running as one
-service with one tray icon and a native mixer window.
+**Compliance is Comfort.™**
 
-> Not affiliated with, endorsed by, or supported by BEACN. "BEACN" and its artwork belong to
-> BEACN. This repository contains **no BEACN artwork, firmware, or installer files**; the
-> optional official look is generated on your own machine from your own copy of the BEACN
-> Windows installer.
+GenoBeacon is a product of [GenoCorp Solutions Inc.](https://genocorp.net). It is one Linux app for BEACN audio devices: device control and a Pipeweaver mixer, one user service, one tray icon, one window.
 
-This repository is a fork of beacn-utility (full upstream history preserved) with extra
-pieces in subfolders. The upstream README is kept as [UPSTREAM_README.md](UPSTREAM_README.md).
+> GenoBeacon is not affiliated with, endorsed by, or supported by BEACN. "BEACN" is a third-party hardware brand (Mix, Mix Create, Mic, Studio, and the BEACN Windows app). GenoBeacon does not ship BEACN artwork, firmware, or installer files, and it does not extract them. Device screens, dials, and the application icon are original GenoBeacon art (red, blue, and black, with a Tinos italic wordmark).
+
+This repository is a fork of [beacn-utility](https://github.com/beacn-on-linux/beacn-utility) (full upstream history preserved). The upstream README is kept as [UPSTREAM_README.md](UPSTREAM_README.md). Protocol and device code still talk to BEACN hardware through upstream `beacn-lib`. The udev rule remains `50-beacn.rules` because it matches the hardware, not the product name.
 
 ## What it does
 
-- **Official-look Mix / Mix Create screen** (`src/integrations/pipeweaver/official*.rs`):
-  header bar and background, four channel cards with names and colour bands, the devices/apps
-  attached to each channel, volume dial tiles that follow the dials, AUDIENCE / MUTE ALL
-  buttons, the Mix A / Mix B toggle, page dots for more than four channels, and the boot logo.
-  Uses the artwork kit you generate locally (see below); without a kit, the stock
-  beacn-utility screen is used.
-- **Real AUDIENCE buttons on the Mix Create:** the official button mutes a channel for the
-  stream only. In Pipeweaver, a source's Mute B with no targets mutes it *everywhere* (the
-  button then reads MUTE ALL). When the profile has exactly one output carrying Mix B (e.g.
-  "Audience"), beacn-utility points each source's empty, inactive Mute B at that output, once
-  per source, so the button reads AUDIENCE and mutes only the stream. Handled sources are
-  remembered in `~/.config/beacn-utility/audience-defaults.json`; if you later clear a
-  source's Mute B targets on purpose, it stays MUTE ALL. Set `BEACN_NO_AUDIENCE_DEFAULT=1`
-  to turn this off. When a MUTE ALL button is active the button turns red and the dial shows
-  the official muted tile, since the channel is muted everywhere; an active AUDIENCE button
-  turns red and shows the stream-muted tile only while you view Mix B. Pressing a dial is the
-  separate personal mute (Mute A).
+- **Device screens for the BEACN Mix and Mix Create** (800×480 JPEG, the size the panel expects). Header, channel cards, dials, Mix A / Mix B toggle, page dots, and the Mix Create audience buttons are drawn by GenoBeacon. Without a kit from BEACN. The boot screen is the GenoBeacon wordmark.
+- **BEACN Studio and Mic** have no LCD. They are configured in the GenoBeacon window. The Studio preview in the test renderer is the same dial language, labeled for a studio cue, in that same 800×480 format.
+- **Real AUDIENCE buttons on the Mix Create.** The button mutes a channel for the stream only. In Pipeweaver, a source's Mute B with no targets mutes it everywhere (the button then reads MUTE ALL). When the profile has exactly one output carrying Mix B (for example "Audience"), GenoBeacon points each source's empty, inactive Mute B at that output, once per source, so the button reads AUDIENCE and mutes only the stream. Handled sources are remembered in `~/.config/genobeacon/audience-defaults.json` (the old `~/.config/beacn-utility/` file is copied on first use). If you later clear a source's Mute B targets on purpose, it stays MUTE ALL. Set `GENOBEACON_NO_AUDIENCE_DEFAULT=1` to turn this off. `BEACN_NO_AUDIENCE_DEFAULT=1` still works, including a systemd drop-in carried over from an older install.
 - **One app instead of two:**
-  - **One service:** `beacn.service` runs `beacn-utility --background --with-pipeweaver`.
-    beacn-utility starts `pipeweaver-daemon --background --no-tray` as a supervised child,
-    restarts it with backoff if it crashes, and stops it on exit (SIGTERM + PDEATHSIG). An
-    already running Pipeweaver daemon is left alone.
-  - **One tray icon:** "Beacn" with Devices, Mixer, Open Logs and Quit. Pipeweaver's own tray
-    is disabled by a small patch (`patches/pipeweaver/`).
-  - **Mixer page inside the Beacn window:** the tray's "Mixer", the launcher's "Mixer" action
-    and `beacn-utility --mixer` open a native Mixer page (Mixer, Routing, Applications,
-    Devices and Settings tabs) that talks to pipeweaver-daemon directly and follows changes
-    made on the hardware live. See `docs/native-mixer-plan.md`.
-  - **Old mixer window, kept as a fallback** (`beacn-mixer/`): a GTK 3 + WebKitGTK window
-    titled "Beacn Mixer" showing Pipeweaver's web UI. Use it with `BEACN_LEGACY_MIXER=1` or
-    `touch ~/.config/beacn-utility/legacy-mixer` (then restart beacn.service), or the
-    "Open web mixer" button on the Mixer page's Settings tab. Its effect panels have graphs
-    (EQ curve, compressor) that the native page shows as plain controls.
-  - **One launcher and app identity:** both windows use the app id
-    `io.github.beacn_on_linux.beacn-utility`, so Plasma groups them under one taskbar icon.
-    The launcher's "Mixer" action opens the mixer.
+  - **One service:** `genobeacon.service` runs `genobeacon --background --with-pipeweaver`. GenoBeacon starts `pipeweaver-daemon --background --no-tray` as a supervised child, restarts it with backoff if it crashes, and stops it on exit. An already running Pipeweaver daemon is left alone.
+  - **One tray icon:** "GenoBeacon", tooltip "Configuration and mixing for BEACN audio devices", with Devices, Mixer, Open Logs and Quit. Pipeweaver's own tray is disabled by a small patch (`patches/pipeweaver/`).
+  - **Mixer page inside the GenoBeacon window:** the tray's Mixer, the launcher's Mixer action and `genobeacon --mixer` open a native Mixer page (Mixer, Routing, Applications, Devices and Settings) that talks to pipeweaver-daemon directly. See `docs/native-mixer-plan.md`.
+  - **Old mixer window, kept as a fallback** (`genobeacon-mixer/`): a GTK 3 + WebKitGTK window titled "GenoBeacon" showing Pipeweaver's web UI. Use it with `GENOBEACON_LEGACY_MIXER=1` (or `BEACN_LEGACY_MIXER=1`) or `touch ~/.config/genobeacon/legacy-mixer` (then restart `genobeacon.service`), or the "Open web mixer" button on the Mixer page's Settings tab.
+  - **One launcher and app id:** `net.genocorp.genobeacon`, so Plasma groups both windows under one taskbar icon.
 
 ## Requirements
 
-- Tested on **Fedora 44 KDE Plasma 6 (Wayland)**, x86_64, with a BEACN Mix Create and
-  BEACN Studio. Other distributions and desktops should work but are untested.
+- Tested on **Fedora 44 KDE Plasma 6 (Wayland)**, x86_64, with a BEACN Mix Create and BEACN Studio. Other distributions and desktops should work but are untested.
 - PipeWire + WirePlumber.
-- beacn-utility's udev rule for device access (one-time, needs root):
+- The upstream udev rule for device access (one-time, needs root):
   `sudo install -m644 50-beacn.rules /etc/udev/rules.d/ && sudo udevadm control --reload`
 - Build dependencies (Fedora names):
   ```
@@ -67,8 +34,6 @@ pieces in subfolders. The upstream README is kept as [UPSTREAM_README.md](UPSTRE
     webkit2gtk4.1-devel gtk3-devel libsoup3-devel libayatana-appindicator-gtk3-devel
   ```
   Or build in a clean container with `contrib/Containerfile` (no host packages needed).
-- For the official artwork kit: `python3-pillow`, `librsvg2-tools` (`rsvg-convert`) and
-  `7zip` (or the `py7zr` Python module).
 
 ## Build
 
@@ -76,120 +41,116 @@ pieces in subfolders. The upstream README is kept as [UPSTREAM_README.md](UPSTRE
 packaging/build.sh
 ```
 
-This builds beacn-utility (this repo), `beacn-mixer`, and Pipeweaver at a pinned upstream
-commit (`006b045`) with `patches/pipeweaver/*.patch` applied, then assembles an installable
-bundle in `dist/beacn-suite/` with checksums. Containerised alternative:
+This builds `genobeacon` (this repo), `genobeacon-mixer`, and Pipeweaver at a pinned upstream commit (`006b045`) with `patches/pipeweaver/*.patch` applied, then assembles an installable bundle in `dist/genobeacon/` with checksums. Containerised alternative:
 
 ```sh
-podman build -t beacn-build:f44 -f contrib/Containerfile .
-podman run --rm -v "$PWD":/src:Z -w /src beacn-build:f44 packaging/build.sh
+podman build -t genobeacon-build:f44 -f contrib/Containerfile .
+podman run --rm -v "$PWD":/src:Z -w /src genobeacon-build:f44 packaging/build.sh
 ```
 
-## Install (per user, no sudo)
+Regenerate the application icon (optional; the PNGs and SVG in `resources/icons/` are already committed):
 
 ```sh
-cd dist/beacn-suite && ./install.sh
+python3 tools/render-brand-assets.py
 ```
 
-`install.sh` verifies the checksums, backs up your current binaries, launchers, autostart
-entries, user units and the beacn-utility / Pipeweaver config to `~/beacn-backup-<timestamp>/`
-(path saved in `~/.beacn-last-backup`), then:
-
-- installs `beacn-utility`, `pipeweaver-daemon`, `pipeweaver-client` to `~/.local/bin` and
-  `beacn-mixer` as `~/.local/bin/pipeweaver-app` (what Pipeweaver's "Open Interface" runs),
-- installs the "Beacn" launcher, icon and `beacn.service` (systemd user unit),
-- hides (does not delete) old Pipeweaver / beacn-utility launchers, removes their autostart
-  entries, disables `pipeweaver.service`, and enables `beacn.service`.
-
-To move an existing install to the native Mixer page without touching Pipeweaver, run
-`packaging/native-mixer-install.sh` (backs up the current beacn-utility and launcher, asks
-before restarting beacn.service, which interrupts audio for a few seconds) and undo it with
-`packaging/native-mixer-rollback.sh`.
-
-Check it: `systemctl --user status beacn`, `pgrep -a pipeweaver-dae` (its parent should be
-beacn-utility), `journalctl --user -u beacn`. If the mixer window can't open from the service,
-check `systemctl --user show-environment | grep WAYLAND`.
-
-## Official artwork kit (from your own installer)
-
-You need the BEACN Windows installer you downloaded from BEACN (`BEACN Setup V1.4.2.12.exe`).
-Nothing is downloaded or run; the installer's embedded archive is read directly.
+## Install, including an existing beacn.service
 
 ```sh
-tools/setup-official-artwork.sh "/path/to/BEACN Setup V1.4.2.12.exe"
-systemctl --user restart beacn
+cd dist/genobeacon && ./install.sh
 ```
 
-This extracts `BEACN.exe` and the default `MixImages/default.images` pack, carves the screen
-components out of `BEACN.exe` (matched by content hash, so another BEACN version fails loudly
-rather than producing a wrong kit), and writes the kit to `~/.local/share/beacn-official/`.
-It then points beacn-utility at it via `~/.config/beacn-utility/official-artwork` and
-`official-screen`. You can also set `BEACN_OFFICIAL_ARTWORK` / `BEACN_OFFICIAL_SCREEN`.
-The lower-level tools are `tools/extract-beacn-installer.py` and `tools/make-official-kit.py`.
+`install.sh` verifies the checksums, backs up the current binaries, launchers, autostart entries, user units, drop-ins and config to `~/genobeacon-backup-<timestamp>/` (path saved in `~/.genobeacon-last-backup`), then migrates and installs. It is safe to run again.
 
-**Do not share or commit the generated kit or extracted files.** `.gitignore` excludes them.
+What the migration does, in order:
+
+1. Stops and disables the user unit `beacn.service` if it exists. Does not delete `~/.config/systemd/user/beacn.service.d/` (your drop-in stays put for rollback).
+2. Stops `beacn-utility` if it is still running.
+3. Copies `~/.config/beacn-utility/` to `~/.config/genobeacon/`, only files that are not already there. It does **not** copy `official-artwork` or `official-screen` (those pointed at extracted BEACN images). The old directory is left in place.
+4. Copies `~/.config/systemd/user/beacn.service.d/*` to `~/.config/systemd/user/genobeacon.service.d/`, only files that are not already there. A drop-in such as `Environment=BEACN_NO_AUDIENCE_DEFAULT=1` keeps working because GenoBeacon still reads the old variable names.
+5. Copies `~/.local/share/beacn-utility/` to `~/.local/share/genobeacon/` the same way.
+6. Installs `genobeacon`, `pipeweaver-daemon` and `pipeweaver-client` to `~/.local/bin`, and `genobeacon-mixer` as `~/.local/bin/pipeweaver-app` (the name Pipeweaver's "Open Interface" launches).
+7. Installs the GenoBeacon launcher, icon and `genobeacon.service`, hides the old Pipeweaver and beacn-utility launchers, removes their autostart entries, disables `pipeweaver.service`, and enables `genobeacon.service`.
+8. Removes `~/.local/bin/beacn-utility` after it has been backed up, so the old name is not left on `PATH`.
+
+Check it: `systemctl --user status genobeacon`, `pgrep -a pipeweaver-dae` (its parent should be genobeacon), `journalctl --user -u genobeacon`. If the mixer window can't open from the service, check `systemctl --user show-environment | grep WAYLAND`.
+
+The same migration is `packaging/migrate.sh` (also copied into the bundle). It only does steps 1–5. `install.sh` calls it. Do not run `migrate.sh` on its own if you still need audio: it stops `beacn.service` and does not start the new one.
+
+To replace only the GenoBeacon binary in an install that is already on `genobeacon.service`:
+
+```sh
+packaging/native-mixer-install.sh
+```
+
+Undo that with `packaging/native-mixer-rollback.sh`. If `~/.local/bin/beacn-utility` is what you have, use `install.sh` instead.
 
 ## Environment variables
 
+New names are preferred. The previous `BEACN_*` names are still read when the new one is unset, so an existing drop-in does not have to be edited.
+
 | Variable | Effect |
 |---|---|
-| `BEACN_OFFICIAL_ARTWORK`, `BEACN_OFFICIAL_SCREEN` | Override the artwork pack / screen kit paths |
-| `BEACN_WITH_PIPEWEAVER=1` | Same as `--with-pipeweaver` (supervise the Pipeweaver daemon) |
-| `BEACN_PIPEWEAVER_DAEMON` | Path to `pipeweaver-daemon` (default: next to beacn-utility, then `$PATH`) |
-| `BEACN_NO_AUDIENCE_DEFAULT=1` | Don't point empty Mute B targets at the Mix B output (keep MUTE ALL) |
-| `BEACN_SCREEN_MIRROR=/path/screen.png` | Debug: also paste every image sent to the device screen into an 800x480 PNG at that path, and log each image's position and size. Re-encodes the PNG on every update, so leave it off normally |
+| `GENOBEACON_WITH_PIPEWEAVER=1` | Same as `--with-pipeweaver` (also `BEACN_WITH_PIPEWEAVER`) |
+| `GENOBEACON_PIPEWEAVER_DAEMON` | Path to `pipeweaver-daemon` (default: next to the binary, then `$PATH`) |
+| `GENOBEACON_NO_AUDIENCE_DEFAULT=1` | Don't point empty Mute B targets at the Mix B output |
+| `GENOBEACON_LEGACY_MIXER=1` | Open the old web mixer window instead of the native page |
+| `GENOBEACON_SCREEN_MIRROR=/path/screen.png` | Debug: also paste every image sent to the device screen into an 800×480 PNG |
+| `GENOBEACON_MIXER_URL` | URL the legacy mixer window loads (default `http://localhost:14565/`) |
 | `PIPEWEAVER_NO_TRAY=1` | (daemon, patched) same as `--no-tray` |
 
-To try the mirror with the service: `systemctl --user edit beacn` and add
-`[Service]` / `Environment=BEACN_SCREEN_MIRROR=%t/beacn-mirror.png`, then restart.
+`BEACN_OFFICIAL_ARTWORK`, `BEACN_OFFICIAL_SCREEN` and the old setup scripts are no longer used. GenoBeacon does not load a BEACN image pack.
+
+To try the mirror with the service: `systemctl --user edit genobeacon` and add `[Service]` / `Environment=GENOBEACON_SCREEN_MIRROR=%t/genobeacon-mirror.png`, then restart.
 
 ## Rollback
 
 ```sh
-dist/beacn-suite/rollback.sh                 # uses the last backup
-dist/beacn-suite/rollback.sh ~/beacn-backup-YYYYMMDD-HHMMSS
+dist/genobeacon/rollback.sh
+dist/genobeacon/rollback.sh ~/genobeacon-backup-YYYYMMDD-HHMMSS
 ```
 
-It disables and removes `beacn.service` and the new launcher, restores the backed-up binaries
-(including symlinks), launchers, autostart entries and units, re-enables `pipeweaver.service`
-if it was enabled, and starts the old beacn-utility. Generated artwork kits are left in place.
+It disables `genobeacon.service`, restores the backed-up binaries (including `beacn-utility` if that was what you had), launchers, autostart entries, units and drop-ins, and re-enables whichever of `beacn.service`, `genobeacon.service` or `pipeweaver.service` was enabled at backup time. `~/.config/beacn-utility` was never deleted. `~/.config/genobeacon` is left in place so a later reinstall still sees settings you changed after the migration.
+
+## Device art
+
+Generated at runtime from `resources/fonts/tinos/` (Tinos, SIL Open Font License) and drawn in code (`src/integrations/pipeweaver/official_screen.rs`). Sizes:
+
+| Piece | Size | Format sent to the device |
+|---|---|---|
+| Full screen (background, splash, studio frame) | 800×480 | JPEG |
+| Channel card | 187×276 | JPEG |
+| Dial | 168×168, centred in the 187×180 dial well | JPEG |
+| Mix Create button | 105×32 | JPEG |
+| Mix A / Mix B pill | 58×32 | JPEG |
+| Application icon | 48×48 and 256×256 PNG, plus SVG | installed icon |
+
+Preview frames (Mix Create Mix A, Mix B, splash, and the Studio frame) are produced with:
+
+```sh
+GENOBEACON_PREVIEW_DIR=/tmp/genobeacon-preview cargo test --release --lib render_previews -- --ignored
+```
 
 ## Known limits
 
-- **Effects show plain controls.** The native Mixer page edits every effect setting as a
-  slider, switch or list; the graphical EQ/compressor panels are only in the old web mixer
-  window. Channels are reordered with "Move left/right" instead of drag and drop.
-- **Default BEACN theme only.** The other official themes (analogue, neumorphic, ...) are not
-  mapped yet.
-- Kit generation is pinned to BEACN app **1.4.2.12** (by asset hashes).
-- WebKitGTK rendering problems on some GPUs can be worked around with
-  `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
+- **Effects show plain controls.** The native Mixer page edits every effect setting as a slider, switch or list; the graphical EQ and compressor panels are only in the old web mixer window.
+- Kit generation from the BEACN Windows installer has been removed.
+- WebKitGTK rendering problems on some GPUs can be worked around with `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
 
 ## Pipeweaver patch: not submitted upstream
 
-`patches/pipeweaver/0001-daemon-add-no-tray-option.patch` adds `--no-tray` /
-`PIPEWEAVER_NO_TRAY=1` to the daemon. Pipeweaver's [AI policy](https://github.com/pipeweaver/pipeweaver/blob/main/AI_POLICY.md)
-does not accept AI-generated contributions, and this patch was written with AI assistance, so
-it is kept here only as a patch file and **has not been and should not be submitted upstream**
-in this form. The same applies to the beacn-utility changes in this fork; please don't file
-them upstream as-is.
+`patches/pipeweaver/0001-daemon-add-no-tray-option.patch` adds `--no-tray` / `PIPEWEAVER_NO_TRAY=1` to the daemon. Pipeweaver's [AI policy](https://github.com/pipeweaver/pipeweaver/blob/main/AI_POLICY.md) does not accept AI-generated contributions, and this patch was written with AI assistance, so it is kept here only as a patch file and **has not been and should not be submitted upstream** in this form. The same applies to the GenoBeacon changes in this fork; please don't file them upstream as-is.
 
 ## Credits
 
-- **beacn-utility** by Craig McLure ([FrostyCoolSlug](https://github.com/FrostyCoolSlug)) and
-  contributors, <https://github.com/beacn-on-linux/beacn-utility>. MIT License,
-  Copyright 2025-2026 Craig McLure. This repository is a fork of it.
-- **Pipeweaver** by Craig McLure ([FrostyCoolSlug](https://github.com/FrostyCoolSlug)) and contributors, <https://github.com/pipeweaver/pipeweaver>.
-  MIT License, Copyright 2025 Craig McLure. Built from upstream source; only a patch is stored here.
-- **Roboto** font (`resources/fonts/roboto/`), Apache License 2.0 (see its LICENSE).
-- **BEACN** makes the Mix, Mix Create, Mic and Studio hardware and the official Windows app.
-  This project is not affiliated with BEACN.
-- The beacn-suite additions were developed with AI assistance (Grok Bot).
+- **beacn-utility** by Craig McLure ([FrostyCoolSlug](https://github.com/FrostyCoolSlug)) and contributors, <https://github.com/beacn-on-linux/beacn-utility>. MIT License, Copyright 2025-2026 Craig McLure. This repository is a fork of it. The device protocol and `beacn-lib` dependency are unchanged.
+- **Pipeweaver** by Craig McLure ([FrostyCoolSlug](https://github.com/FrostyCoolSlug)) and contributors, <https://github.com/pipeweaver/pipeweaver>. MIT License, Copyright 2025 Craig McLure. Built from upstream source; only a patch is stored here.
+- **Tinos** (`resources/fonts/tinos/`), SIL Open Font License 1.1. Copyright 2026 The Tinos Project Authors. Used for the GenoBeacon wordmark.
+- **Noto Sans** and **Roboto**, used for interface text. Their licenses are next to the files.
+- **Font Awesome** icons under `resources/ui/icons/` (see that directory's README).
+- **BEACN** makes the Mix, Mix Create, Mic and Studio hardware and the official Windows app. GenoBeacon is not affiliated with BEACN.
+- GenoBeacon is published by GenoCorp Solutions Inc. The additions in this fork were developed with AI assistance (Grok Bot).
 
 ## License
 
-MIT, see [LICENSE](LICENSE) (the upstream beacn-utility license and copyright notice are kept
-unchanged). The beacn-suite additions (`beacn-mixer/`, `packaging/`, `tools/`, `contrib/`,
-`patches/`, and the changes in `src/`) are also released under the MIT License.
-Pipeweaver is MIT-licensed by its authors; the patch in `patches/pipeweaver/` is offered under
-the same license.
+MIT, see [LICENSE](LICENSE) (the upstream beacn-utility license and copyright notice are kept unchanged). The GenoBeacon additions (`genobeacon-mixer/`, `packaging/`, `tools/`, `contrib/`, `patches/`, and the changes in `src/`) are also released under the MIT License. Pipeweaver is MIT-licensed by its authors; the patch in `patches/pipeweaver/` is offered under the same license.

@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=GenoBeacon
+GenericName=Audio Mixer and Device Settings
+Comment=Configuration and mixing for BEACN audio devices
+Exec=env GENOBEACON_WITH_PIPEWEAVER=1 genobeacon
+Icon=genobeacon
+Terminal=false
+Categories=AudioVideo;Audio;Mixer;Settings;HardwareSettings;
+Keywords=genobeacon;genocorp;beacn;mixer;audio;
+StartupWMClass=net.genocorp.genobeacon
+SingleMainWindow=true
+Actions=mixer;
+
+[Desktop Action mixer]
+Name=Mixer
+Exec=env GENOBEACON_WITH_PIPEWEAVER=1 genobeacon --mixer

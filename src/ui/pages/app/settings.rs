@@ -39,12 +39,12 @@ impl SettingsPage {
     }
 
     pub(crate) fn view(&self) -> Element<'_, SettingsMessage> {
-        let title = "About the Beacn Utility";
+        let title = "About GenoBeacon";
 
         let autostart: Element<'_, SettingsMessage> =
             if let Ok(autostart_enabled) = self.autostart_enabled {
                 checkbox(autostart_enabled)
-                    .label("Auto-Start the Beacn Utility on Login")
+                    .label("Auto-start GenoBeacon on login")
                     .on_toggle(SettingsMessage::EnableAutostart)
                     .into()
             } else {
@@ -105,7 +105,7 @@ impl SettingsPage {
             .then(move |identifier| {
                 // We can send this directly into an iced task, rather than blocking
                 Task::future(async move {
-                    let reason = "Manage Beacn Devices on Startup";
+                    let reason = "Manage BEACN devices on startup";
 
                     let request = Background::request()
                         .identifier(identifier)
@@ -149,8 +149,11 @@ impl SettingsPage {
 
                         conf.with_section(Some("Desktop Entry"))
                             .set("Type", "Application")
-                            .set("Name", "Beacn Utility")
-                            .set("Comment", "A Tool for Configuring Beacn Devices")
+                            .set("Name", "GenoBeacon")
+                            .set(
+                                "Comment",
+                                "Configuration and mixing for BEACN audio devices",
+                            )
                             .set("Exec", format!("{exe:?} --background"))
                             .set("Terminal", "false");
 
@@ -170,6 +173,8 @@ impl SettingsPage {
 
         if let Err(e) = result {
             warn!("Failed to set autostart: {e}");
+        } else {
+            crate::clear_legacy_autostart();
         }
 
         Task::done(SettingsMessage::AutoStartChanged)

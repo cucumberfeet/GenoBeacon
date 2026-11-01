@@ -244,7 +244,7 @@ pub fn get_audio(link: PipewireStream, stop: Arc<AtomicBool>) -> Result<()> {
 
     let mut props = PwProperties::new(&pw.borrow())?;
     props.set("node.name", local_name.borrow().as_str())?;
-    props.set("node.description", "beacn-utility")?;
+    props.set("node.description", "genobeacon")?;
     props.set("media.type", "Audio")?;
     props.set("media.category", "Capture")?;
     props.set("media.role", "Monitor")?;

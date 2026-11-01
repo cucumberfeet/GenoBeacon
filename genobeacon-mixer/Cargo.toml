@@ -1,9 +1,9 @@
 [package]
-name = "beacn-mixer"
-version = "0.1.0"
+name = "genobeacon-mixer"
+version = "1.1.0"
 edition = "2024"
 license = "MIT"
-description = "Native window for the Beacn audio mixer (Pipeweaver web UI) - replaces the Brave app window"
+description = "Legacy GenoBeacon mixer window (Pipeweaver web UI). A product of GenoCorp Solutions Inc."
 
 [dependencies]
 gtk = "0.18"

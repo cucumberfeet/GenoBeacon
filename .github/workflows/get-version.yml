@@ -3,7 +3,7 @@ on:
   workflow_call:
     outputs:
       version:
-        description: "The Beacn Utility Version Number"
+        description: "The GenoBeacon version number"
         value: ${{ jobs.get_version.outputs.version }}
 
 jobs:

@@ -169,7 +169,7 @@ impl Tray for TrayIcon {
     fn tool_tip(&self) -> ToolTip {
         ToolTip {
             title: String::from(APP_TITLE),
-            description: String::from("Beacn devices and audio mixer"),
+            description: String::from("Configuration and mixing for BEACN audio devices"),
             ..Default::default()
         }
     }

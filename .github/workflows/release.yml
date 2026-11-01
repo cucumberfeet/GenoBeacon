@@ -40,6 +40,6 @@ jobs:
           prerelease: true
           fail_on_unmatched_files: true
           files: |
-            ./debian-artifact/beacn-utility_${{ needs.get_version.outputs.version }}-1_amd64.deb
-            ./rpm-artifact/beacn-utility-${{ needs.get_version.outputs.version }}-1.x86_64.rpm
-#            ./flatpak-artifact/beacn-utility.flatpakref
+            ./debian-artifact/genobeacon_${{ needs.get_version.outputs.version }}-1_amd64.deb
+            ./rpm-artifact/genobeacon-${{ needs.get_version.outputs.version }}-1.x86_64.rpm
+#            ./flatpak-artifact/genobeacon.flatpakref

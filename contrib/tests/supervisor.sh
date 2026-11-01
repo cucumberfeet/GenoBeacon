@@ -2,7 +2,7 @@
 # Container smoke test (run from the repo root inside contrib/Containerfile + Xvfb, ImageMagick, xdotool, dbus-x11).
 set -u
 dnf -yq --disablerepo=fedora-cisco-openh264 install procps-ng libxkbcommon-x11 mesa-vulkan-drivers mesa-dri-drivers >/dev/null 2>&1
-B="${B:-dist/beacn-suite/files}"
+B="${B:-dist/genobeacon/files}"
 $B/pipeweaver-daemon --help | grep -A1 no-tray
 mkdir -p /tmp/bin; cat > /tmp/bin/pipeweaver-daemon <<'X'
 #!/bin/bash
@@ -13,7 +13,7 @@ X
 chmod +x /tmp/bin/pipeweaver-daemon
 export XDG_RUNTIME_DIR=/tmp/rt; mkdir -p -m700 $XDG_RUNTIME_DIR
 dbus-uuidgen > /etc/machine-id; Xvfb :9 -screen 0 1600x1000x24 >/dev/null 2>&1 & export DISPLAY=:9; sleep 1; eval $(dbus-launch --sh-syntax)
-BEACN_PIPEWEAVER_DAEMON=/tmp/bin/pipeweaver-daemon $B/beacn-utility --background --with-pipeweaver > /tmp/u.log 2>&1 &
+GENOBEACON_PIPEWEAVER_DAEMON=/tmp/bin/pipeweaver-daemon $B/genobeacon --background --with-pipeweaver > /tmp/u.log 2>&1 &
 U=$!; sleep 4
 echo "--- running:"; pgrep -af fake; pgrep -af 'bin/pipeweaver-daemon'
 pkill -f /tmp/bin/pipeweaver-daemon; sleep 3   # crash -> restart

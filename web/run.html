@@ -1,16 +1,16 @@
 <!--
  Note: Generate the .js and .wasm via:
  cargo build --release --target wasm32-unknown-unknown
- wasm-bindgen --target web --out-dir web/ target/wasm32-unknown-unknown/release/beacn-utility.wasm
+ wasm-bindgen --target web --out-dir web/ target/wasm32-unknown-unknown/release/genobeacon.wasm
 
- You only need beacn-utility.js and beacn-utility_bg.wasm
+ You only need genobeacon.js and genobeacon_bg.wasm
 -->
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Beacn Utility</title>
+    <title>GenoBeacon</title>
     <style>
         :root {
             color-scheme: light dark;
@@ -28,8 +28,8 @@
 <script type="module">
     const cacheKill = Math.floor(Math.random() * 1000000);
 
-    const module = await import(`./beacn-utility.js?t=${cacheKill}`);
-    await module.default(`./beacn-utility_bg.wasm?t=${cacheKill}`)
+    const module = await import(`./genobeacon.js?t=${cacheKill}`);
+    await module.default(`./genobeacon_bg.wasm?t=${cacheKill}`)
 </script>
 </body>
 </html>

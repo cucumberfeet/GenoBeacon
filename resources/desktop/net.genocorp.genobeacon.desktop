@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=GenoBeacon
+GenericName=Audio Mixer and Device Settings
+Comment=Configuration and mixing for BEACN audio devices
+Path=/usr/bin
+Exec=/usr/bin/genobeacon
+Icon=genobeacon
+Terminal=false
+Categories=AudioVideo;Audio;Mixer;Settings;HardwareSettings;
+Keywords=genobeacon;genocorp;beacn;mixer;audio;
+StartupWMClass=net.genocorp.genobeacon

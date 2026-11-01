@@ -34,10 +34,10 @@ impl Page for LoadingPage {
 
     fn view_fn(&self, device: &DeviceState) -> Element<'_, PageMessage> {
         let device_type = match device.definition().device_type {
-            DeviceType::BeacnMic => "Beacn Mic",
-            DeviceType::BeacnStudio => "Beacn Studio",
-            DeviceType::BeacnMixCreate => "Beacn Mix Create",
-            DeviceType::BeacnMix => "Beacn Mix",
+            DeviceType::BeacnMic => "BEACN Mic",
+            DeviceType::BeacnStudio => "BEACN Studio",
+            DeviceType::BeacnMixCreate => "BEACN Mix Create",
+            DeviceType::BeacnMix => "BEACN Mix",
         };
         let text = format!("Loading {}...", device_type);
 

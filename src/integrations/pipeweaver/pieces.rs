@@ -7,7 +7,7 @@ use crate::integrations::pipeweaver::layout::GradientDirection::{BottomToTop, To
 use crate::integrations::pipeweaver::layout::*;
 use anyhow::Result;
 use image::imageops::{crop, crop_imm};
-use image::{Rgba, RgbaImage, load_from_memory};
+use image::{Rgba, RgbaImage};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock};
 
@@ -97,11 +97,24 @@ static PLATE_BLANK: LazyLock<Jpeg> = LazyLock::new(|| {
     encode(&RgbaImage::from_pixel(w, h, BG_COLOUR))
 });
 
-// The strip across the top is already a JPEG, but we need to expand it to the full height
+// Top strip for the fallback layout. The GenoBeacon kit draws the same header.
 pub(crate) static HEADER_STRIP: LazyLock<Jpeg> = LazyLock::new(|| {
+    if let Some(kit) = crate::integrations::pipeweaver::official_screen::kit()
+        && let Ok(jpeg) = kit.header_strip()
+    {
+        return jpeg;
+    }
     let mut base = RgbaImage::from_pixel(DISPLAY_DIMENSIONS.0, POSITION_ROOT.1, BG_COLOUR);
-    let header = load_from_memory(HEADER).expect("Failed").to_rgba8();
-    DrawingUtils::composite_from(&mut base, &header, 0, 0);
+    let text = DrawingUtils::draw_text(
+        "GenoBeacon".into(),
+        360,
+        48,
+        FONT_BOLD,
+        28.0,
+        Rgba([232, 234, 240, 255]),
+        TextAlign::Left,
+    );
+    DrawingUtils::composite_from(&mut base, &text, 24, 16);
     encode(&base)
 });
 
@@ -395,7 +408,7 @@ pub(crate) struct SlotShown {
     pub(crate) top: Option<PieceKey>,
     pub(crate) mute: Option<PieceKey>,
     pub(crate) dial: Option<(Mix, u8, u8)>,
-    pub(crate) face: Option<crate::integrations::pipeweaver::official::Face>,
+    pub(crate) face: Option<crate::integrations::pipeweaver::official_screen::Face>,
 }
 
 /// What we believe the device is currently displaying. Anything not matching what we want

@@ -95,7 +95,7 @@ async fn run_internal(
 
     // We need to temporarily hold on these events, to allow us to load settings.
     let what = "sleep";
-    let who = "Beacn Utility";
+    let who = "GenoBeacon";
     let why = "Applying Sleep Settings";
     let mode = "delay";
 
