@@ -1,11 +1,11 @@
 /target
 ./.idea
 
-# --- beacn-suite ---
+# --- genobeacon ---
 # Build outputs and bundles (never commit prebuilt binaries or tarballs)
 /build/
 /dist/
-/beacn-mixer/target/
+/genobeacon-mixer/target/
 *.tar
 *.tar.gz
 *.tgz

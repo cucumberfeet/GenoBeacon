@@ -1,11 +1,11 @@
 # Native mixer page: plan and feature inventory
 
-Goal: one window. The Pipeweaver web mixer (shown today by `beacn-mixer`, a GTK/WebKit
-wrapper) is rebuilt as a native **Mixer** page inside beacn-utility's own iced window. Wayland
+Goal: one window. The Pipeweaver web mixer (shown today by `genobeacon-mixer`, a GTK/WebKit
+wrapper) is rebuilt as a native **Mixer** page inside GenoBeacon's own iced window. Wayland
 can't embed another app's window, so the page is a reimplementation that talks to the
 pipeweaver daemon over the same websocket API the web mixer uses.
 
-The old `beacn-mixer` window stays available as a fallback (see "Fallback" below) until the
+The old `genobeacon-mixer` window stays available as a fallback (see "Fallback" below) until the
 native page has been tested and approved.
 
 Source of truth for the inventory: Pipeweaver at the pinned commit `006b045`
@@ -75,7 +75,7 @@ through "Open web mixer" in the page's Settings tab while the fallback exists).
 |---|---|---|
 | Audio buffer (quantum): PipeWire default or 8 to 4096 | `SetAudioQuantum(Option<Quantum>)` | done |
 | Restart audio engine (confirm) | `ResetAudio` | done |
-| Pipeweaver auto start | `SetAutoStart` | not shown on purpose: `beacn.service` starts the daemon |
+| Pipeweaver auto start | `SetAutoStart` | not shown on purpose: `genobeacon.service` starts the daemon |
 | "Use browser instead of app" | `SetUseBrowser` | not shown: only affects the fallback window |
 | Open the web mixer (fallback window) | `OpenInterface` | done (button) |
 
@@ -94,18 +94,18 @@ through "Open web mixer" in the page's Settings tab while the fallback exists).
   - `view.rs`, `strip.rs`, `routing.rs`, `apps.rs`, `devices.rs`, `settings.rs`, `filters.rs`,
     `style.rs` - the UI.
 - Sidebar: the top button opens the Mixer page (a neutral sliders icon, no third-party logo).
-- Tray "Mixer", the launcher's "Mixer" action (`beacn-utility --mixer`) and a second launch
+- Tray "Mixer", the launcher's "Mixer" action (`genobeacon --mixer`) and a second launch
   with `--mixer` all open the device window on the Mixer page.
 
 ## Fallback
 The old window is still built and installed as `~/.local/bin/pipeweaver-app`. To use it instead
-of the native page, either set `BEACN_LEGACY_MIXER=1` in the service environment or create
-`~/.config/beacn-utility/legacy-mixer` (any content), then `systemctl --user restart beacn`.
+of the native page, either set `GENOBEACON_LEGACY_MIXER=1` (the old `BEACN_LEGACY_MIXER` still works) in the service environment or create
+`~/.config/genobeacon/legacy-mixer` (any content), then `systemctl --user restart genobeacon`.
 With the fallback on, the sidebar button, tray "Mixer" and `--mixer` open the old window exactly
 as before. The native page also offers "Open web mixer" in its Settings tab for the gaps above.
 
 ## Look
-Same palette as beacn-utility (`#1B1B1B` background, `#3C3C3C` controls, `#005C80` accent)
+Same palette as GenoBeacon (black background, blue accent, red for Mix B / mute)
 and the mixer colours already used on the Mix Create screen: Mix A cyan `#59B1B6`, Mix B
 orange `#F47C24`, mute red. Channel headers carry the channel colour. No third-party branding.
 

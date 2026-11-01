@@ -26,10 +26,10 @@ impl PipeweaverPage {
     }
 
     pub(crate) fn view(&self) -> Element<'_, PipeweaverMessage> {
-        let title = "Enhance your Beacn on Linux experience with Pipeweaver";
+        let title = "GenoBeacon works with Pipeweaver";
 
         let part_one = "Pipeweaver brings streaming-focused audio control to Linux, with mixing, routing, and separate personal and stream outputs.";
-        let part_two = "If you have a Mix / Mix Create, the Beacn Utility will talk to Pipeweaver to bring volume and mix control to your devices, similar to how you've used them on Windows.";
+        let part_two = "If you have a BEACN Mix or Mix Create, GenoBeacon talks to Pipeweaver so the device can follow volume and mix changes.";
         let part_three = "Pipeweaver isn’t running right now. If you’ve already installed it, just start it up. If not, hit the button below and give it an install!";
 
         let button_text = text("Get Pipeweaver")

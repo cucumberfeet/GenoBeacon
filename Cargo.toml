@@ -1,10 +1,10 @@
 [package]
-name = "beacn-utility"
-version = "0.3.0"
+name = "genobeacon"
+version = "1.1.0"
 edition = "2024"
-authors = ["Craig McLure <craig@mclure.net>"]
-description = "Allows Configuration of Beacn Devices"
-repository = "https://github.com/beacn-on-linux/beacn-utility"
+authors = ["Craig McLure <craig@mclure.net>", "GenoCorp Solutions Inc."]
+description = "GenoBeacon — configuration and mixing for BEACN audio devices. A product of GenoCorp Solutions Inc."
+repository = "https://github.com/cucumberfeet/beacn-suite"
 license = "MIT"
 categories = ["hardware-support"]
 build = "build.rs"
@@ -124,35 +124,35 @@ num-complex = "0.4.6"
 
 # Packaging
 [package.metadata.deb]
-name = "beacn-utility"
+name = "genobeacon"
 assets = [
-    ["target/release/beacn-utility", "usr/bin/", "755"],
+    ["target/release/genobeacon", "usr/bin/", "755"],
     ["50-beacn.rules", "etc/udev/rules.d/", "644"],
-    ["resources/icons/beacn-utility.png", "usr/share/icons/hicolor/48x48/apps/", "644"],
-    ["resources/icons/beacn-utility-large.png", "usr/share/pixmaps/beacn-utility.png", "644"],
-    ["resources/icons/beacn-utility.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["resources/desktop/io.github.beacn_on_linux.beacn-utility.desktop", "usr/share/applications/", "644"],
+    ["resources/icons/genobeacon.png", "usr/share/icons/hicolor/48x48/apps/", "644"],
+    ["resources/icons/genobeacon-large.png", "usr/share/pixmaps/genobeacon.png", "644"],
+    ["resources/icons/genobeacon.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["resources/desktop/net.genocorp.genobeacon.desktop", "usr/share/applications/", "644"],
 ]
 maintainer-scripts = ".github/ci/DEBIAN/"
 section = "sound"
 priority = "optional"
 depends = "$auto"
 extended-description = """\
-A utility for monitoring and controlling Beacn Devices
+GenoBeacon configures and mixes BEACN audio devices. A product of GenoCorp Solutions Inc. Unaffiliated with BEACN.
 """
 revision = "1"
 
 ## cargo generate-rpm support..
 [package.metadata.generate-rpm]
-name = "beacn-utility"
+name = "genobeacon"
 
 assets = [
-    { source = "target/release/beacn-utility", dest = "/usr/bin/beacn-utility", mode = "0755" },
+    { source = "target/release/genobeacon", dest = "/usr/bin/genobeacon", mode = "0755" },
     { source = "50-beacn.rules", dest = "/etc/udev/rules.d/50-beacn.rules", mode = "0644" },
-    { source = "resources/icons/beacn-utility.png", dest = "/usr/share/icons/hicolor/48x48/apps/beacn-utility.png", mode = "0644" },
-    { source = "resources/icons/beacn-utility-large.png", dest = "/usr/share/pixmaps/beacn-utility.png", mode = "0644" },
-    { source = "resources/icons/beacn-utility.svg", dest = "/usr/share/icons/hicolor/scalable/apps/beacn-utility.svg", mode = "0644" },
-    { source = "resources/desktop/io.github.beacn_on_linux.beacn-utility.desktop", dest = "/usr/share/applications/io.github.beacn_on_linux.beacn-utility.desktop", mode = "0644" },
+    { source = "resources/icons/genobeacon.png", dest = "/usr/share/icons/hicolor/48x48/apps/genobeacon.png", mode = "0644" },
+    { source = "resources/icons/genobeacon-large.png", dest = "/usr/share/pixmaps/genobeacon.png", mode = "0644" },
+    { source = "resources/icons/genobeacon.svg", dest = "/usr/share/icons/hicolor/scalable/apps/genobeacon.svg", mode = "0644" },
+    { source = "resources/desktop/net.genocorp.genobeacon.desktop", dest = "/usr/share/applications/net.genocorp.genobeacon.desktop", mode = "0644" },
 ]
 
 # Tiny scriptlet, should reload udev if possible.

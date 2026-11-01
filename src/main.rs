@@ -17,7 +17,7 @@ use std::{env, fs};
 
 use crate::devices::manager::{DeviceMessage, spawn_device_manager};
 use crate::ui::app::{BeacnUtility, Flags};
-use crate::ui::widgets::theme::build_beacn_theme;
+use crate::ui::widgets::theme::build_genobeacon_theme;
 use tokio::{join, task};
 
 pub mod devices;
@@ -37,10 +37,62 @@ mod quit_notify {
     pub static QUIT_NOTIFY: LazyLock<Arc<Notify>> = LazyLock::new(|| Arc::new(Notify::new()));
 }
 
-const APP_TLD: &str = "io.github.beacn_on_linux";
-const APP_NAME: &str = "beacn-utility";
-const APP_TITLE: &str = "Beacn";
-const ICON: &[u8] = include_bytes!("../resources/icons/beacn-utility-large.png");
+const APP_TLD: &str = "net.genocorp";
+const APP_NAME: &str = "genobeacon";
+const APP_TITLE: &str = "GenoBeacon";
+const LEGACY_APP_NAME: &str = "beacn-utility";
+const ICON: &[u8] = include_bytes!("../resources/icons/genobeacon-large.png");
+
+/// True when `primary` is set to anything other than empty / 0 / false / no.
+/// If `primary` is unset, `legacy` is checked the same way so existing drop-ins
+/// (`BEACN_NO_AUDIENCE_DEFAULT=1` and the rest) keep working.
+pub(crate) fn env_enabled(primary: &str, legacy: &str) -> bool {
+    fn on(value: &str) -> bool {
+        !matches!(value.trim(), "" | "0" | "false" | "no")
+    }
+    if let Ok(value) = env::var(primary) {
+        return on(&value);
+    }
+    env::var(legacy).is_ok_and(|value| on(&value))
+}
+
+pub(crate) fn env_nonempty(primary: &str, legacy: &str) -> Option<String> {
+    env::var(primary)
+        .ok()
+        .filter(|value| !value.is_empty())
+        .or_else(|| env::var(legacy).ok().filter(|value| !value.is_empty()))
+}
+
+pub(crate) fn env_os(primary: &str, legacy: &str) -> Option<std::ffi::OsString> {
+    env::var_os(primary)
+        .filter(|value| !value.is_empty())
+        .or_else(|| env::var_os(legacy).filter(|value| !value.is_empty()))
+}
+
+/// Config file in `~/.config/genobeacon`. If it is missing and the same file
+/// exists under the old `beacn-utility` directory, it is copied once.
+/// Pointers at extracted BEACN artwork are not copied.
+pub(crate) fn config_file(name: &str) -> Option<PathBuf> {
+    if matches!(name, "official-artwork" | "official-screen") {
+        return None;
+    }
+    let base = BaseDirs::new()?;
+    let new_dir = base.config_dir().join(APP_NAME);
+    let new_path = new_dir.join(name);
+    if new_path.exists() {
+        return Some(new_path);
+    }
+    let old_path = base.config_dir().join(LEGACY_APP_NAME).join(name);
+    if old_path.is_file() {
+        let _ = fs::create_dir_all(&new_dir);
+        if fs::copy(&old_path, &new_path).is_ok() {
+            return Some(new_path);
+        }
+        return Some(old_path);
+    }
+    let _ = fs::create_dir_all(&new_dir);
+    Some(new_path)
+}
 
 #[derive(Parser, Debug)]
 #[command(about, version, author)]
@@ -114,7 +166,7 @@ async fn main() -> Result<()> {
         // Try to establish a log file in the XDG data directory
         match get_logs_path() {
             Ok(path) => {
-                let log_file = path.join("beacn-utility.log");
+                let log_file = path.join("genobeacon.log");
                 println!("Logging to file: {log_file:?}");
 
                 let file_rotate = FileRotate::new(
@@ -322,7 +374,7 @@ fn spawn_iced_window(
     )
     .title(BeacnUtility::title)
     .subscription(BeacnUtility::subscription)
-    .theme(|_state: &BeacnUtility, _window_id: window::Id| build_beacn_theme())
+    .theme(|_state: &BeacnUtility, _window_id: window::Id| build_genobeacon_theme())
     .settings(settings);
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -362,14 +414,17 @@ pub fn get_data_path() -> Result<PathBuf> {
     let base = BaseDirs::new().ok_or(anyhow!("Failed to find Base Directories"))?;
     let data = base.data_dir().join(APP_NAME);
 
-    // This is a migration to move from ~/.local/share/io.github.beacn_on_linux to
-    // ~/.local/share/beacn-utility - This is to match the cache and config behaviours.
-    let old_data_path = base.data_dir().join(APP_TLD);
-    if old_data_path.exists() && !data.exists() {
-        println!("Migrating Log Directory from {old_data_path:?} to {data:?}");
-        fs::rename(&old_data_path, &data)?;
-    } else if old_data_path.exists() && data.exists() {
-        fs::remove_dir_all(&old_data_path)?;
+    // Bring logs forward from older directory names. Copy, don't rename, so a
+    // rollback to the previous binary can still see its own directory.
+    if !data.exists() {
+        for legacy in [LEGACY_APP_NAME, "io.github.beacn_on_linux"] {
+            let old = base.data_dir().join(legacy);
+            if old.is_dir() {
+                println!("Copying data directory from {old:?} to {data:?}");
+                let _ = copy_tree(&old, &data);
+                break;
+            }
+        }
     }
 
     match fs::create_dir_all(&data) {
@@ -378,6 +433,20 @@ pub fn get_data_path() -> Result<PathBuf> {
             bail!("Failed to create config directory: {e}");
         }
     }
+}
+
+fn copy_tree(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let to = dst.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_tree(&entry.path(), &to)?;
+        } else if !to.exists() {
+            fs::copy(entry.path(), to)?;
+        }
+    }
+    Ok(())
 }
 
 pub fn get_config_path() -> Result<PathBuf> {
@@ -409,24 +478,43 @@ pub fn get_autostart_file() -> Result<PathBuf> {
     let base = BaseDirs::new().ok_or(anyhow!("Failed to find Base Directories"))?;
     let config_dir = base.config_dir();
 
-    // This is how flatpaks will create the file, so we need to match it
-    let autostart_file = format!("{APP_TLD}.{APP_NAME}.desktop");
-    let path = config_dir.join("autostart").join(autostart_file);
+    // Flatpak and the old packages used these names. The file we write is the new one.
+    let autostart_dir = config_dir.join("autostart");
+    let path = autostart_dir.join(format!("{APP_TLD}.{APP_NAME}.desktop"));
+    let _ = fs::create_dir_all(&autostart_dir);
 
-    let legacy_path = config_dir
-        .join("autostart")
-        .join(format!("{APP_TLD}.desktop"));
-    if legacy_path.exists() {
-        if !path.exists() {
-            debug!("Migrating Legacy Autostart File from {legacy_path:?} to {path:?}");
-            fs::rename(&legacy_path, &path)?;
-        } else {
-            debug!("Removing Legacy Autostart File at {legacy_path:?} as new file exists",);
-            fs::remove_file(&legacy_path)?;
+    for legacy in [
+        "io.github.beacn_on_linux.beacn-utility.desktop",
+        "io.github.beacn_on_linux.desktop",
+        "beacn-utility.desktop",
+    ] {
+        let legacy_path = autostart_dir.join(legacy);
+        if !legacy_path.exists() {
+            continue;
         }
+        if !path.exists() {
+            debug!("Migrating autostart file from {legacy_path:?} to {path:?}");
+            let _ = fs::copy(&legacy_path, &path);
+        }
+        // Leave the old file. Disabling autostart removes both; see clear_legacy_autostart.
     }
 
     Ok(path)
+}
+
+/// Removes autostart entries written under the previous names.
+pub fn clear_legacy_autostart() {
+    let Some(base) = BaseDirs::new() else {
+        return;
+    };
+    let autostart_dir = base.config_dir().join("autostart");
+    for legacy in [
+        "io.github.beacn_on_linux.beacn-utility.desktop",
+        "io.github.beacn_on_linux.desktop",
+        "beacn-utility.desktop",
+    ] {
+        let _ = fs::remove_file(autostart_dir.join(legacy));
+    }
 }
 
 #[cfg(not(target_os = "linux"))]

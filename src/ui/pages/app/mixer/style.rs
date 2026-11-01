@@ -1,5 +1,5 @@
 //! Colours, styles and small building blocks shared by the Mixer page.
-//! Palette: beacn-utility's own (#1B1B1B / #3C3C3C / #005C80) plus the Mix Create's mix colours.
+//! Palette: GenoBeacon black / red / blue. Mix A is blue, Mix B is red.
 
 use crate::ui::SVG;
 use crate::ui::pages::app::mixer::model::Colour;
@@ -7,19 +7,19 @@ use iced::gradient::Linear;
 use iced::widget::{Button, button, container, slider, svg, text, vertical_slider};
 use iced::{Background, Border, Color, Element, Gradient, Length, Radians, Shadow, Theme};
 
-pub const MIX_A: Color = Color::from_rgb8(0x59, 0xB1, 0xB6);
-pub const MIX_B: Color = Color::from_rgb8(0xF4, 0x7C, 0x24);
-pub const MUTE: Color = Color::from_rgb8(0xD9, 0x3A, 0x3A);
+pub const MIX_A: Color = Color::from_rgb8(0x3D, 0x7E, 0xFF);
+pub const MIX_B: Color = Color::from_rgb8(0xE1, 0x06, 0x00);
+pub const MUTE: Color = Color::from_rgb8(0xE1, 0x06, 0x00);
 pub const WARN: Color = Color::from_rgb8(0xF0, 0xB4, 0x29);
-pub const ACCENT: Color = Color::from_rgb8(0x00, 0x5C, 0x80);
-pub const TEXT: Color = Color::from_rgb8(0xDA, 0xDA, 0xDA);
-pub const TEXT_DIM: Color = Color::from_rgb8(0x8A, 0x8A, 0x8A);
-pub const PANEL: Color = Color::from_rgb8(0x23, 0x23, 0x23);
-pub const PANEL_RAISED: Color = Color::from_rgb8(0x2B, 0x2B, 0x2B);
-pub const CONTROL: Color = Color::from_rgb8(0x3C, 0x3C, 0x3C);
-pub const CONTROL_HOVER: Color = Color::from_rgb8(0x46, 0x46, 0x46);
-pub const BORDER: Color = Color::from_rgb8(0x36, 0x36, 0x36);
-pub const RAIL: Color = Color::from_rgb8(0x31, 0x31, 0x31);
+pub const ACCENT: Color = Color::from_rgb8(0x3D, 0x7E, 0xFF);
+pub const TEXT: Color = Color::from_rgb8(0xE8, 0xEA, 0xF0);
+pub const TEXT_DIM: Color = Color::from_rgb8(0x96, 0x9C, 0xAC);
+pub const PANEL: Color = Color::from_rgb8(0x10, 0x12, 0x18);
+pub const PANEL_RAISED: Color = Color::from_rgb8(0x18, 0x1C, 0x26);
+pub const CONTROL: Color = Color::from_rgb8(0x22, 0x27, 0x34);
+pub const CONTROL_HOVER: Color = Color::from_rgb8(0x2C, 0x33, 0x44);
+pub const BORDER: Color = Color::from_rgb8(0x2A, 0x31, 0x42);
+pub const RAIL: Color = Color::from_rgb8(0x1A, 0x1E, 0x28);
 
 pub fn colour(c: Colour) -> Color {
     Color::from_rgb8(c.red, c.green, c.blue)

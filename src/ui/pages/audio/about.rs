@@ -67,8 +67,8 @@ impl AudioPage for About {
 
     fn view(&self, state: &AudioState) -> iced::Element<'_, PageMessage> {
         let title = match state.device_definition.device_type {
-            DeviceType::BeacnMic => "About Beacn Mic",
-            DeviceType::BeacnStudio => "About Beacn Studio",
+            DeviceType::BeacnMic => "About BEACN Mic",
+            DeviceType::BeacnStudio => "About BEACN Studio",
             _ => "ERROR",
         };
 
@@ -117,7 +117,7 @@ impl AudioPage for About {
                     .align_y(Alignment::Center),
             );
 
-            let note = "Note: When changing this value, the Beacn Mic will reboot.";
+            let note = "Note: When changing this value, the BEACN Mic will reboot.";
             content = content.push(text(note).size(13));
         }
 

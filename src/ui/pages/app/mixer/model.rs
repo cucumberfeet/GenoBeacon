@@ -608,7 +608,7 @@ impl Model {
                 .collect::<Vec<_>>()
         };
         for c in virt {
-            list.push((c.id.clone(), format!("Beacn {}", c.name)));
+            list.push((c.id.clone(), format!("BEACN {}", c.name)));
         }
         list.sort_by_key(|(_, l)| l.to_lowercase());
         list

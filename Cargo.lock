@@ -473,54 +473,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "beacn-utility"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "ashpd",
- "beacn-lib",
- "clap",
- "console_log",
- "directories",
- "dlopen2",
- "emath",
- "enum-map",
- "file-rotate",
- "fontdue",
- "iced",
- "iced_color_picker",
- "iced_futures",
- "image",
- "interprocess",
- "json-patch",
- "ksni",
- "libc",
- "log",
- "log-panics",
- "num-complex",
- "oneshot",
- "open",
- "rayon",
- "rust-ini",
- "rustfft",
- "serde",
- "serde_json",
- "simplelog",
- "strum",
- "strum_macros",
- "tokio",
- "tokio-tungstenite-wasm",
- "tokio_with_wasm",
- "unicode-segmentation",
- "wasm-bindgen",
- "web-sys",
- "web-time",
- "webbrowser",
- "wide",
- "zbus",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1665,6 +1617,54 @@ checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "typenum",
  "version_check",
+]
+
+[[package]]
+name = "genobeacon"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "ashpd",
+ "beacn-lib",
+ "clap",
+ "console_log",
+ "directories",
+ "dlopen2",
+ "emath",
+ "enum-map",
+ "file-rotate",
+ "fontdue",
+ "iced",
+ "iced_color_picker",
+ "iced_futures",
+ "image",
+ "interprocess",
+ "json-patch",
+ "ksni",
+ "libc",
+ "log",
+ "log-panics",
+ "num-complex",
+ "oneshot",
+ "open",
+ "rayon",
+ "rust-ini",
+ "rustfft",
+ "serde",
+ "serde_json",
+ "simplelog",
+ "strum",
+ "strum_macros",
+ "tokio",
+ "tokio-tungstenite-wasm",
+ "tokio_with_wasm",
+ "unicode-segmentation",
+ "wasm-bindgen",
+ "web-sys",
+ "web-time",
+ "webbrowser",
+ "wide",
+ "zbus",
 ]
 
 [[package]]

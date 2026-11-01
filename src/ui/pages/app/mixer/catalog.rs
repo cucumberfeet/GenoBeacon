@@ -830,8 +830,7 @@ fn modified(path: &Path) -> Option<std::time::SystemTime> {
 }
 
 fn routing_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "beacn-utility")
-        .map(|d| d.config_dir().join("app-routing.json"))
+    crate::config_file("app-routing.json")
 }
 
 impl AppRouting {

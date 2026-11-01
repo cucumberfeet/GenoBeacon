@@ -27,7 +27,7 @@ Simply build the project with the wasm target, then run wasm-bindgen to generate
 
 ```
 cargo build --release --target wasm32-unknown-unknown
-wasm-bindgen --target web --out-dir web/ target/wasm32-unknown-unknown/release/beacn-utility.wasm
+wasm-bindgen --target web --out-dir web/ target/wasm32-unknown-unknown/release/genobeacon.wasm
 ```
 
 ### Running

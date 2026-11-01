@@ -19,11 +19,13 @@ use tokio::time::sleep;
 const DAEMON: &str = "pipeweaver-daemon";
 
 pub fn enabled(flag: bool) -> bool {
-    flag || env::var("BEACN_WITH_PIPEWEAVER").is_ok_and(|v| !v.is_empty() && v != "0")
+    flag || crate::env_enabled("GENOBEACON_WITH_PIPEWEAVER", "BEACN_WITH_PIPEWEAVER")
 }
 
 fn find_daemon() -> Option<PathBuf> {
-    if let Ok(path) = env::var("BEACN_PIPEWEAVER_DAEMON") {
+    if let Some(path) =
+        crate::env_nonempty("GENOBEACON_PIPEWEAVER_DAEMON", "BEACN_PIPEWEAVER_DAEMON")
+    {
         return Some(PathBuf::from(path));
     }
     if let Ok(exe) = env::current_exe()

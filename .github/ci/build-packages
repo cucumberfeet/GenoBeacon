@@ -25,7 +25,7 @@ fi
 # To work around this, we force a release build, copy out the shell completions produced from that build, put it into
 # a predictable location and then build the packages, which knows where to look.
 cargo build --release --all-features
-strip target/release/beacn-utility
+strip target/release/genobeacon
 
 DEPLOY_DIR=deployment/deb
 mkdir -p "$DEPLOY_DIR"

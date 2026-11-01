@@ -28,8 +28,6 @@ pub(crate) static FONT: &[u8] =
 pub(crate) static FONT_BOLD: &[u8] =
     include_bytes!("../../../resources/fonts/noto/NotoSans-Bold.ttf");
 
-pub(crate) static HEADER: &[u8] = include_bytes!("../../../resources/screens/header.jpg");
-
 pub(crate) static JPEG_QUALITY: u8 = 90;
 pub(crate) static METER_JPEG_QUALITY: u8 = 70;
 
@@ -82,13 +80,13 @@ pub(crate) static DIAL_VOLUME_JPEG: DialVolumeJPEG = Lazy::new(DialHandler::comp
 static PARSED_FONTS: FontCache = Lazy::new(|| Mutex::new(HashMap::new()));
 
 // Next up, we define some colours, which will be used when generating components
-pub(crate) static TEXT_COLOUR: Rgba<u8> = Rgba([180, 180, 180, 255]);
-pub(crate) static BG_COLOUR: Rgba<u8> = Rgba([27, 30, 41, 255]);
+pub(crate) static TEXT_COLOUR: Rgba<u8> = Rgba([210, 214, 224, 255]);
+pub(crate) static BG_COLOUR: Rgba<u8> = Rgba([7, 8, 12, 255]);
 
-pub(crate) static DIAL_INACTIVE: Rgba<u8> = Rgba([37, 41, 39, 255]);
+pub(crate) static DIAL_INACTIVE: Rgba<u8> = Rgba([22, 26, 34, 255]);
 
-pub(crate) static MIX_A_DIAL: Rgba<u8> = Rgba([79, 215, 255, 255]);
-pub(crate) static MIX_B_DIAL: Rgba<u8> = Rgba([255, 165, 73, 255]);
+pub(crate) static MIX_A_DIAL: Rgba<u8> = Rgba([61, 126, 255, 255]);
+pub(crate) static MIX_B_DIAL: Rgba<u8> = Rgba([225, 6, 0, 255]);
 // pub(crate) static METER_A_DIAL: Rgba<u8> = Rgba([174, 255, 255, 255]);
 // pub(crate) static METER_B_DIAL: Rgba<u8> = Rgba([255, 248, 151, 255]);
 pub(crate) static METER_A_DIAL: Rgba<u8> = Rgba([242, 255, 73, 255]);

@@ -1,5 +1,5 @@
 [Unit]
-Description=Beacn (device control + audio mixer)
+Description=GenoBeacon (BEACN device control and audio mixer)
 Documentation=https://github.com/cucumberfeet/beacn-suite
 After=pipewire.service wireplumber.service
 Wants=pipewire.service wireplumber.service
@@ -8,7 +8,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/beacn-utility --background --with-pipeweaver
+ExecStart=%h/.local/bin/genobeacon --background --with-pipeweaver
 Restart=on-failure
 RestartSec=3
 # The mixer window is spawned from here; make sure it can find the display

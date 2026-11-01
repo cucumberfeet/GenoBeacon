@@ -1,8 +1,8 @@
-//! Beacn Mixer: a small native (GTK3 + WebKitGTK, Wayland-native) window that hosts the
-//! Pipeweaver mixer UI served by the daemon on localhost. Installed as `pipeweaver-app`
-//! so Pipeweaver's own "Open Interface" (and the Beacn tray/sidebar "Mixer") opens it.
+//! GenoBeacon mixer window: a small native (GTK3 + WebKitGTK, Wayland-native) window that
+//! hosts the Pipeweaver mixer UI served by the daemon on localhost. Installed as
+//! `pipeweaver-app` so Pipeweaver's own "Open Interface" launches it.
 //!
-//! It shares the Beacn Utility's application id, so KDE treats both windows as one app
+//! It shares GenoBeacon's application id, so KDE treats both windows as one app
 //! (one taskbar entry, one icon, one .desktop file). Single instance: launching it again
 //! just brings the existing window forward.
 
@@ -15,21 +15,30 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 use webkit2gtk::{
-    ContextMenu, ContextMenuAction, ContextMenuExt, ContextMenuItem, ContextMenuItemExt, LoadEvent, SettingsExt,
-    WebContext, WebContextExt, WebView, WebViewExt,
+    ContextMenu, ContextMenuAction, ContextMenuExt, ContextMenuItem, ContextMenuItemExt, LoadEvent,
+    SettingsExt, WebContext, WebContextExt, WebView, WebViewExt,
 };
 
-const APP_ID: &str = "io.github.beacn_on_linux.beacn-utility";
-const TITLE: &str = "Beacn Mixer";
+const APP_ID: &str = "net.genocorp.genobeacon";
+const TITLE: &str = "GenoBeacon";
 const DEFAULT_URL: &str = "http://localhost:14565/";
 const BG: &str = "#1b1e29";
 
 fn url() -> String {
-    std::env::var("BEACN_MIXER_URL").unwrap_or_else(|_| DEFAULT_URL.to_string())
+    std::env::var("GENOBEACON_MIXER_URL")
+        .or_else(|_| std::env::var("BEACN_MIXER_URL"))
+        .unwrap_or_else(|_| DEFAULT_URL.to_string())
 }
 
 fn state_dir() -> PathBuf {
-    glib::user_config_dir().join("beacn-utility")
+    let base = glib::user_config_dir();
+    let new = base.join("genobeacon");
+    let old = base.join("beacn-utility");
+    if new.join("legacy-mixer").exists() || !old.join("legacy-mixer").exists() {
+        new
+    } else {
+        old
+    }
 }
 
 fn geometry_file() -> PathBuf {
@@ -70,18 +79,24 @@ animation:p 1.2s infinite ease-in-out}} .d:nth-child(2){{animation-delay:.2s}} .
     )
 }
 
-fn open_devices() {
-    // The Beacn Utility is single-instance: launching it again opens its window.
-    let _ = std::process::Command::new("beacn-utility")
+fn spawn_detached(bin: &str) -> std::io::Result<()> {
+    let mut child = std::process::Command::new(bin)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .spawn()
-        .map(|mut c| {
-            std::thread::spawn(move || {
-                let _ = c.wait();
-            })
-        });
+        .spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
+fn open_devices() {
+    // GenoBeacon is single-instance: launching it again opens its window.
+    // Fall back to the previous binary name if this machine has not been migrated.
+    if spawn_detached("genobeacon").is_err() {
+        let _ = spawn_detached("beacn-utility");
+    }
 }
 
 fn build_window(app: &gtk::Application) -> gtk::ApplicationWindow {
@@ -98,8 +113,12 @@ fn build_window(app: &gtk::Application) -> gtk::ApplicationWindow {
     }
 
     // Persistent storage (localStorage etc.) for the mixer UI
-    let data = glib::user_data_dir().join("beacn-utility").join("mixer-webdata");
-    let cache = glib::user_cache_dir().join("beacn-utility").join("mixer-webcache");
+    let data = glib::user_data_dir()
+        .join("genobeacon")
+        .join("mixer-webdata");
+    let cache = glib::user_cache_dir()
+        .join("genobeacon")
+        .join("mixer-webcache");
     let manager = webkit2gtk::WebsiteDataManager::builder()
         .base_data_directory(data.to_string_lossy().as_ref())
         .base_cache_directory(cache.to_string_lossy().as_ref())
@@ -110,7 +129,10 @@ fn build_window(app: &gtk::Application) -> gtk::ApplicationWindow {
     let webview = WebView::with_context(&context);
     webview.set_background_color(&RGBA::parse(BG).unwrap_or(RGBA::BLACK));
     if let Some(settings) = WebViewExt::settings(&webview) {
-        settings.set_enable_developer_extras(std::env::var("BEACN_MIXER_DEVTOOLS").is_ok());
+        settings.set_enable_developer_extras(
+            std::env::var_os("GENOBEACON_MIXER_DEVTOOLS").is_some()
+                || std::env::var_os("BEACN_MIXER_DEVTOOLS").is_some(),
+        );
         settings.set_enable_back_forward_navigation_gestures(false);
         settings.set_hardware_acceleration_policy(webkit2gtk::HardwareAccelerationPolicy::OnDemand);
     }
@@ -148,12 +170,15 @@ fn build_window(app: &gtk::Application) -> gtk::ApplicationWindow {
 
     // Open external links (docs etc.) in the default browser instead of inside the mixer.
     webview.connect_decide_policy(|_view, decision, kind| {
-        use webkit2gtk::{NavigationPolicyDecision, PolicyDecisionExt, PolicyDecisionType, URIRequestExt};
+        use webkit2gtk::{
+            NavigationPolicyDecision, PolicyDecisionExt, PolicyDecisionType, URIRequestExt,
+        };
         if kind == PolicyDecisionType::NewWindowAction
             || kind == PolicyDecisionType::NavigationAction
         {
             if let Some(nav) = decision.downcast_ref::<NavigationPolicyDecision>()
-                && let Some(action) = webkit2gtk::NavigationPolicyDecisionExt::navigation_action(nav)
+                && let Some(action) =
+                    webkit2gtk::NavigationPolicyDecisionExt::navigation_action(nav)
                 && let Some(action) = Some(action)
                 && let Some(req) = action.request()
                 && let Some(uri) = req.uri()
@@ -209,7 +234,7 @@ fn build_window(app: &gtk::Application) -> gtk::ApplicationWindow {
         }
         group.add_action(&devices);
         group.add_action(&reload);
-        menu.append(&ContextMenuItem::from_gaction(&devices, "Beacn Devices…", None));
+        menu.append(&ContextMenuItem::from_gaction(&devices, "GenoBeacon", None));
         menu.append(&ContextMenuItem::from_gaction(&reload, "Reload", None));
         // keep the group alive for the menu lifetime
         unsafe {
