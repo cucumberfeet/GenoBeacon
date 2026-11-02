@@ -8,6 +8,10 @@
 | **Applications** | **Devices** |
 | ![Applications](screens/applications.png) | ![Devices](screens/devices.png) |
 
+**Mix Create screen** (what the device itself shows)
+
+![Mix Create screen](screens/mixcreate-device.png)
+
 An official-look Mix Create screen and a single, merged **Beacn** app for Linux:
 [beacn-utility](https://github.com/beacn-on-linux/beacn-utility) (device control) and
 [Pipeweaver](https://github.com/pipeweaver/pipeweaver) (audio routing/mixer) running as one
