@@ -1,4 +1,12 @@
-# beacn-suite
+# GenoBeacon
+
+![Mixer](screens/mixer.png)
+
+| Studio EQ | Routing |
+|---|---|
+| ![Studio EQ](screens/studio-eq.png) | ![Routing](screens/routing.png) |
+| **Applications** | **Devices** |
+| ![Applications](screens/applications.png) | ![Devices](screens/devices.png) |
 
 An official-look Mix Create screen and a single, merged **Beacn** app for Linux:
 [beacn-utility](https://github.com/beacn-on-linux/beacn-utility) (device control) and
