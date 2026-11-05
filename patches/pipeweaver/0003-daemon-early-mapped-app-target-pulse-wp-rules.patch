@@ -1,0 +1,466 @@
+From 8bf2c70657bc8191cf88fa6a92aea357889699d0 Mon Sep 17 00:00:00 2001
+From: cucumberfeet <116314769+cucumberfeet@users.noreply.github.com>
+Date: Wed, 4 Nov 2026 22:07:43 -0500
+Subject: [PATCH] daemon: prevent System blip for mapped apps (pulse/WP rules)
+
+When pipewire-pulse stamps node.target=<default sink>, WirePlumber skips
+stream-properties restore and briefly links the app to System. Generate
+pulse.rules + a WirePlumber linking override from the profile so
+target.object points at the mapped pipeweaver_* channel on first connect.
+Also skip the 250ms ApplicationAdded discovery wait when the app already
+has a profile mapping.
+
+---
+ .../pipewire/components/app_target_rules.rs   | 350 ++++++++++++++++++
+ .../pipewire/components/application.rs        |   6 +
+ .../pipewire/components/load_profile.rs       |   3 +
+ daemon/src/handler/pipewire/components/mod.rs |   1 +
+ daemon/src/handler/pipewire/manager.rs        |  16 +-
+ 5 files changed, 374 insertions(+), 2 deletions(-)
+ create mode 100644 daemon/src/handler/pipewire/components/app_target_rules.rs
+
+diff --git a/daemon/src/handler/pipewire/components/app_target_rules.rs b/daemon/src/handler/pipewire/components/app_target_rules.rs
+new file mode 100644
+index 0000000..4c6ef68
+--- /dev/null
++++ b/daemon/src/handler/pipewire/components/app_target_rules.rs
+@@ -0,0 +1,350 @@
++//! Publish PipeWire Pulse + WirePlumber rules so mapped app streams are
++//! linked to their GenoBeacon channel on first connect.
++//!
++//! Why this exists: pipewire-pulse / Phonon often stamp `node.target=<default
++//! sink id>` on a new stream. WirePlumber's stream-properties restore then
++//! *skips* restoring the saved `pipeweaver_*` target (because node.target is
++//! already set), so the first link goes to System for ~1s until Pipeweaver
++//! SetApplicationTarget moves it. Putting `target.object = "pipeweaver_<ch>"`
++//! on the stream via pulse.rules (and a WP linking override for native
++//! clients) makes find-defined-target pick the mapped channel before any
++//! default link is created.
++
++use crate::handler::pipewire::manager::PipewireManager;
++use crate::APP_NAME;
++use anyhow::Result;
++use log::{debug, info, warn};
++use pipeweaver_shared::DeviceType;
++use std::collections::BTreeMap;
++use std::fs;
++use std::io::Write;
++use std::path::PathBuf;
++use ulid::Ulid;
++
++const PULSE_RULES_FILE: &str = "99-genobeacon-app-targets.conf";
++const WP_CONF_FILE: &str = "99-genobeacon-app-targets.conf";
++const WP_SCRIPT_FILE: &str = "find-genobeacon-target.lua";
++
++pub(crate) trait AppTargetRules {
++    /// Rewrite pulse.rules + WirePlumber linking hook from the current profile.
++    fn sync_app_target_rules(&self) -> Result<()>;
++}
++
++impl AppTargetRules for PipewireManager {
++    fn sync_app_target_rules(&self) -> Result<()> {
++        let map = build_match_map(self);
++        if let Err(e) = write_pulse_rules(&map) {
++            warn!("Failed to write pipewire-pulse app-target rules: {e}");
++        }
++        if let Err(e) = write_wireplumber_rules(&map) {
++            warn!("Failed to write WirePlumber app-target rules: {e}");
++        }
++        Ok(())
++    }
++}
++
++/// Keys that may appear on a stream/client → pipeweaver_* sink name.
++fn build_match_map(mgr: &PipewireManager) -> BTreeMap<String, String> {
++    let mut out = BTreeMap::new();
++    let mapping = &mgr.profile.application_mapping[DeviceType::Source];
++    for (process, apps) in mapping {
++        for (app_name, target) in apps {
++            let Some(channel) = device_name(mgr, *target) else {
++                continue;
++            };
++            let sink = pipeweaver_node_name(&channel);
++            // Match process binary, application.name, media.name, node.name.
++            for key in [process.as_str(), app_name.as_str()] {
++                if !key.is_empty() {
++                    out.insert(key.to_string(), sink.clone());
++                }
++            }
++        }
++    }
++    out
++}
++
++fn device_name(mgr: &PipewireManager, id: Ulid) -> Option<String> {
++    let sources = &mgr.profile.devices.sources;
++    for d in sources
++        .physical_devices
++        .iter()
++        .map(|d| &d.description)
++        .chain(sources.virtual_devices.iter().map(|d| &d.description))
++    {
++        if d.id == id {
++            return Some(d.name.clone());
++        }
++    }
++    let targets = &mgr.profile.devices.targets;
++    for d in targets
++        .physical_devices
++        .iter()
++        .map(|d| &d.description)
++        .chain(targets.virtual_devices.iter().map(|d| &d.description))
++    {
++        if d.id == id {
++            return Some(d.name.clone());
++        }
++    }
++    None
++}
++
++fn pipeweaver_node_name(channel: &str) -> String {
++    format!("{} {}", APP_NAME, channel)
++        .to_lowercase()
++        .replace(' ', "_")
++}
++
++fn spa_string(s: &str) -> String {
++    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
++}
++
++fn pulse_conf_path() -> Option<PathBuf> {
++    let home = directories::BaseDirs::new()?.home_dir().to_path_buf();
++    Some(
++        home.join(".config")
++            .join("pipewire")
++            .join("pipewire-pulse.conf.d")
++            .join(PULSE_RULES_FILE),
++    )
++}
++
++fn wp_conf_path() -> Option<PathBuf> {
++    let home = directories::BaseDirs::new()?.home_dir().to_path_buf();
++    Some(
++        home.join(".config")
++            .join("wireplumber")
++            .join("wireplumber.conf.d")
++            .join(WP_CONF_FILE),
++    )
++}
++
++fn wp_script_path() -> Option<PathBuf> {
++    let home = directories::BaseDirs::new()?.home_dir().to_path_buf();
++    Some(
++        home.join(".local/share")
++            .join("wireplumber")
++            .join("scripts")
++            .join("linking")
++            .join(WP_SCRIPT_FILE),
++    )
++}
++
++fn write_pulse_rules(map: &BTreeMap<String, String>) -> Result<()> {
++    let Some(path) = pulse_conf_path() else {
++        return bail_home();
++    };
++    if let Some(parent) = path.parent() {
++        fs::create_dir_all(parent)?;
++    }
++
++    if map.is_empty() {
++        if path.exists() {
++            fs::remove_file(&path)?;
++            info!("Removed empty GenoBeacon pulse app-target rules at {}", path.display());
++        }
++        return Ok(());
++    }
++
++    // Group match keys by target sink so each sink gets one rule block.
++    let mut by_sink: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
++    for (key, sink) in map {
++        by_sink.entry(sink.as_str()).or_default().push(key.as_str());
++    }
++
++    let mut body = String::from(
++        "# Generated by GenoBeacon / pipeweaver-daemon — do not edit.\n\
++         # Sets target.object so WirePlumber links mapped apps to their\n\
++         # channel on first connect (avoids a brief System default blip).\n\
++         # Apply: systemctl --user restart pipewire-pulse\n\
++         pulse.rules = [\n",
++    );
++
++    for (sink, keys) in by_sink {
++        body.push_str("  {\n    matches = [\n");
++        for key in keys {
++            let q = spa_string(key);
++            // Match any of the common identity properties.
++            body.push_str(&format!(
++                "      {{ application.process.binary = {q} }}\n\
++                      {{ application.name = {q} }}\n\
++                      {{ media.name = {q} }}\n\
++                      {{ node.name = {q} }}\n"
++            ));
++        }
++        body.push_str("    ]\n    actions = {\n      update-props = {\n");
++        body.push_str(&format!(
++            "        target.object = {}\n",
++            spa_string(sink)
++        ));
++        body.push_str("      }\n    }\n  }\n");
++    }
++    body.push_str("]\n");
++
++    atomic_write(&path, body.as_bytes())?;
++    info!(
++        "Wrote GenoBeacon pulse app-target rules ({} keys) to {}",
++        map.len(),
++        path.display()
++    );
++    Ok(())
++}
++
++fn write_wireplumber_rules(map: &BTreeMap<String, String>) -> Result<()> {
++    let Some(script_path) = wp_script_path() else {
++        return bail_home();
++    };
++    let Some(conf_path) = wp_conf_path() else {
++        return bail_home();
++    };
++
++    if let Some(parent) = script_path.parent() {
++        fs::create_dir_all(parent)?;
++    }
++    if let Some(parent) = conf_path.parent() {
++        fs::create_dir_all(parent)?;
++    }
++
++    if map.is_empty() {
++        let _ = fs::remove_file(&script_path);
++        let _ = fs::remove_file(&conf_path);
++        return Ok(());
++    }
++
++    // Lua map table
++    let mut lua_map = String::from("local MAP = {\n");
++    for (key, sink) in map {
++        lua_map.push_str(&format!(
++            "  [{}] = {},\n",
++            spa_string(key),
++            spa_string(sink)
++        ));
++    }
++    lua_map.push_str("}\n");
++
++    let script = format!(
++        r#"{lua_map}
++-- Generated by GenoBeacon / pipeweaver-daemon — do not edit.
++-- Override WirePlumber's first link when pipewire-pulse stamped node.target
++-- to the default sink (which also skips stream-properties restore).
++lutils = require ("linking-utils")
++cutils = require ("common-utils")
++log = Log.open_topic ("s-linking")
++
++SimpleEventHook {{
++  name = "linking/find-genobeacon-target",
++  after = {{ "linking/find-defined-target" }},
++  before = {{ "linking/find-default-target", "linking/prepare-link" }},
++  interests = {{
++    EventInterest {{
++      Constraint {{ "event.type", "=", "select-target" }},
++    }},
++  }},
++  execute = function (event)
++    local source, om, si, si_props, si_flags, target =
++        lutils:unwrap_select_target_event (event)
++
++    local keys = {{
++      si_props ["node.name"],
++      si_props ["media.name"],
++      si_props ["application.name"],
++      si_props ["application.process.binary"],
++    }}
++
++    local mapped = nil
++    for _, k in ipairs (keys) do
++      if k and MAP [k] then
++        mapped = MAP [k]
++        break
++      end
++    end
++    if not mapped then
++      return
++    end
++
++    -- If find-defined already picked our mapped sink, keep it.
++    if target and target.properties ["node.name"] == mapped then
++      return
++    end
++
++    local direction = cutils.getTargetDirection (si_props)
++    local picked = nil
++    for lnkbl in om:iterate {{ type = "SiLinkable" }} do
++      local tp = lnkbl.properties
++      if tp ["node.name"] == mapped
++          and tp ["item.node.direction"] == direction
++          and lutils.canLink (si_props, lnkbl) then
++        picked = lnkbl
++        break
++      end
++    end
++
++    if not picked then
++      return
++    end
++
++    local passthrough_compatible, can_passthrough =
++        lutils.checkPassthroughCompatibility (si, picked)
++    if not passthrough_compatible then
++      return
++    end
++
++    log:info (si, string.format (
++        "genobeacon target override: %s -> %s",
++        tostring (si_props ["node.name"]), mapped))
++    si_flags.can_passthrough = can_passthrough
++    si_flags.has_defined_target = true
++    event:set_data ("target", picked)
++  end
++}}:register ()
++"#,
++        lua_map = lua_map
++    );
++
++    atomic_write(&script_path, script.as_bytes())?;
++
++    let conf = format!(
++        "# Generated by GenoBeacon / pipeweaver-daemon — do not edit.\n\
++         # Apply: systemctl --user restart wireplumber\n\
++         wireplumber.components = [\n\
++           {{\n\
++             name = linking/{script}, type = script/lua\n\
++             provides = hooks.linking.target.find-genobeacon\n\
++           }}\n\
++         ]\n\
++         wireplumber.profiles = {{\n\
++           main = {{\n\
++             hooks.linking.target.find-genobeacon = required\n\
++           }}\n\
++         }}\n",
++        script = WP_SCRIPT_FILE
++    );
++    atomic_write(&conf_path, conf.as_bytes())?;
++
++    debug!(
++        "Wrote WirePlumber genobeacon target rules to {} and {}",
++        script_path.display(),
++        conf_path.display()
++    );
++    info!(
++        "Wrote WirePlumber app-target override ({} keys); restart wireplumber to load",
++        map.len()
++    );
++    Ok(())
++}
++
++fn atomic_write(path: &PathBuf, bytes: &[u8]) -> Result<()> {
++    let tmp = path.with_extension("tmp");
++    {
++        let mut f = fs::File::create(&tmp)?;
++        f.write_all(bytes)?;
++        f.sync_all()?;
++    }
++    fs::rename(&tmp, path)?;
++    Ok(())
++}
++
++fn bail_home() -> Result<()> {
++    anyhow::bail!("Could not resolve home directory for app-target rules")
++}
+diff --git a/daemon/src/handler/pipewire/components/application.rs b/daemon/src/handler/pipewire/components/application.rs
+index a245143..ebb7e48 100644
+--- a/daemon/src/handler/pipewire/components/application.rs
++++ b/daemon/src/handler/pipewire/components/application.rs
+@@ -1,3 +1,4 @@
++use crate::handler::pipewire::components::app_target_rules::AppTargetRules;
+ use crate::handler::pipewire::components::node::NodeManagement;
+ use crate::handler::pipewire::manager::PipewireManager;
+ use anyhow::{Result, bail};
+@@ -62,6 +63,9 @@ impl ApplicationManagement for PipewireManager {
+             self.pipewire().send_message(message)?;
+         }
+ 
++        // Keep pulse/WP first-link rules in sync with the profile mapping.
++        let _ = self.sync_app_target_rules();
++
+         Ok(())
+     }
+ 
+@@ -82,6 +86,8 @@ impl ApplicationManagement for PipewireManager {
+             self.pipewire().send_message(message)?;
+         }
+ 
++        let _ = self.sync_app_target_rules();
++
+         Ok(())
+     }
+ 
+diff --git a/daemon/src/handler/pipewire/components/load_profile.rs b/daemon/src/handler/pipewire/components/load_profile.rs
+index a3529d6..a0b1482 100644
+--- a/daemon/src/handler/pipewire/components/load_profile.rs
++++ b/daemon/src/handler/pipewire/components/load_profile.rs
+@@ -2,6 +2,7 @@ use crate::handler::pipewire::components::filters::FilterManagement;
+ use crate::handler::pipewire::components::node::NodeManagement;
+ use crate::handler::pipewire::components::routing::RoutingManagement;
+ use crate::handler::pipewire::components::volume::VolumeManager;
++use crate::handler::pipewire::components::app_target_rules::AppTargetRules;
+ use crate::handler::pipewire::manager::PipewireManager;
+ use anyhow::Result;
+ use log::debug;
+@@ -22,6 +23,8 @@ impl LoadProfile for PipewireManager {
+         self.profile_create_nodes().await?;
+         self.profile_load_volumes().await?;
+         self.profile_apply_routing().await?;
++        // Publish pulse/WP rules so mapped apps never briefly hit the default sink.
++        let _ = self.sync_app_target_rules();
+ 
+         Ok(())
+     }
+diff --git a/daemon/src/handler/pipewire/components/mod.rs b/daemon/src/handler/pipewire/components/mod.rs
+index fb214a2..046a192 100644
+--- a/daemon/src/handler/pipewire/components/mod.rs
++++ b/daemon/src/handler/pipewire/components/mod.rs
+@@ -1,4 +1,5 @@
+ pub(crate) mod application;
++pub(crate) mod app_target_rules;
+ mod audio_filters;
+ pub(crate) mod defaults;
+ pub(crate) mod filters;
+diff --git a/daemon/src/handler/pipewire/manager.rs b/daemon/src/handler/pipewire/manager.rs
+index 14a06f4..6d9721d 100644
+--- a/daemon/src/handler/pipewire/manager.rs
++++ b/daemon/src/handler/pipewire/manager.rs
+@@ -615,8 +615,20 @@ impl PipewireManager {
+                             }
+                         }
+                         PipewireReceiver::ApplicationAdded(node) => {
+-                            if node.media_target.is_some() {
+-                                // We already have a target defined, no point waiting for it.
++                            // Mapped apps: apply SetApplicationTarget immediately. Waiting
++                            // 250ms for a media_target echo just prolongs the System-channel
++                            // blip (and WP often never restores target.object when the
++                            // client already stamped node.target to the default sink).
++                            let mapped = {
++                                use crate::handler::pipewire::components::application::get_application_type;
++                                let map_type = get_application_type(node.node_class);
++                                self.profile.application_mapping[map_type]
++                                    .get(&node.process_name)
++                                    .and_then(|m| m.get(&node.name))
++                                    .is_some()
++                            };
++
++                            if node.media_target.is_some() || mapped {
+                                 let _ = self.application_appeared(node);
+ 
+                                 if self.worker_sender.capacity() > 0 {
+-- 
+2.47.3
+

@@ -1,0 +1,343 @@
+From: cucumberfeet <116314769+cucumberfeet@users.noreply.github.com>
+Date: Wed, 4 Nov 2026 21:30:00 -0500
+Subject: [PATCH] pipewire: keep each app stream on only one channel
+
+WirePlumber can leave the default-sink link when target.object is
+updated to a Pipeweaver channel. Drop unmanaged links that are not the
+mapped channel when the target is set, and refuse late links that
+violate the same rule.
+
+diff --git a/pipewire/src/manager.rs b/pipewire/src/manager.rs
+index c70a48b..b0f8b37 100644
+--- a/pipewire/src/manager.rs
++++ b/pipewire/src/manager.rs
+@@ -188,12 +188,32 @@ impl PipewireManager {
+     }
+ 
+     pub fn remove_all_unmanaged_links(&mut self, node: u32) -> Result<()> {
+-        for (&id, link) in self.store.borrow().get_unmanaged_links() {
+-            if link.input_node == node || link.output_node == node {
+-                self.registry.destroy_global(id);
+-            }
+-        }
++        self.remove_unmanaged_links_except(node, None)
++    }
+ 
++    /// Destroy unmanaged (WirePlumber/session) links for `node`, optionally keeping
++    /// links that already go to `keep_peer`. Used so an app stream is only ever
++    /// attached to one Pipeweaver channel.
++    pub fn remove_unmanaged_links_except(
++        &mut self,
++        node: u32,
++        keep_peer: Option<u32>,
++    ) -> Result<()> {
++        use crate::registry::link::unmanaged_link_ids_to_drop;
++        let to_drop = {
++            let store = self.store.borrow();
++            let list: Vec<(u32, &crate::registry::link::RegistryLink)> = store
++                .get_unmanaged_links()
++                .iter()
++                .map(|(&id, link)| (id, link))
++                .collect();
++            unmanaged_link_ids_to_drop(&list, node, keep_peer)
++        };
++        for id in to_drop {
++            debug!("Dropping unmanaged link {id} for exclusive app routing on node {node}");
++            self.registry.destroy_global(id);
++            self.store.borrow_mut().unmanaged_link_remove(id);
++        }
+         Ok(())
+     }
+ 
+@@ -207,24 +227,37 @@ impl PipewireManager {
+             }
+         };
+ 
+-        let mut store = self.store.borrow_mut();
+-        if let Some(pw_id) = pw_id {
+-            store.unmanaged_node_set_meta(
+-                app_id,
+-                String::from("target.node"),
+-                Some(String::from("Spa:Id")),
+-                Some(pw_id.to_string()),
+-            );
+-        }
+-        if let Some(serial) = object_serial {
+-            store.unmanaged_node_set_meta(
+-                app_id,
+-                String::from("target.object"),
+-                Some(String::from("Spa:Id")),
+-                Some(serial.to_string()),
+-            );
++        {
++            let mut store = self.store.borrow_mut();
++            if let Some(pw_id) = pw_id {
++                store.unmanaged_node_set_meta(
++                    app_id,
++                    String::from("target.node"),
++                    Some(String::from("Spa:Id")),
++                    Some(pw_id.to_string()),
++                );
++                // Update local media_target immediately so exclusivity checks
++                // in handle_link do not wait for the metadata property echo.
++                store.unmanaged_client_node_set_target(
++                    app_id,
++                    crate::store::TargetType::Node(Some(pw_id)),
++                );
++            }
++            if let Some(serial) = object_serial {
++                store.unmanaged_node_set_meta(
++                    app_id,
++                    String::from("target.object"),
++                    Some(String::from("Spa:Id")),
++                    Some(serial.to_string()),
++                );
++            }
+         }
+ 
++        // WirePlumber often leaves the previous (default) sink linked after
++        // target.object is updated. Drop every unmanaged link that is not the
++        // mapped channel so the stream plays on only one GenoBeacon channel.
++        self.remove_unmanaged_links_except(app_id, pw_id)?;
++
+         Ok(())
+     }
+ 
+diff --git a/pipewire/src/registry/link.rs b/pipewire/src/registry/link.rs
+index 522a725..561e320 100644
+--- a/pipewire/src/registry/link.rs
++++ b/pipewire/src/registry/link.rs
+@@ -1,19 +1,79 @@
+ use crate::store::Store;
+ use anyhow::anyhow;
++use log::debug;
+ use pipewire::keys::{
+     LINK_INPUT_NODE, LINK_INPUT_PORT, LINK_OUTPUT_NODE, LINK_OUTPUT_PORT, OBJECT_SERIAL,
+ };
+-use pipewire::registry::GlobalObject;
++use pipewire::registry::{GlobalObject, RegistryRc};
+ use pipewire::spa::utils::dict::DictRef;
+ 
+-pub fn handle_link(id: u32, global: &GlobalObject<&DictRef>, store: &mut Store) {
++pub fn handle_link(
++    id: u32,
++    global: &GlobalObject<&DictRef>,
++    store: &mut Store,
++    registry: &RegistryRc,
++) {
+     if let Some(props) = global.props
+         && let Ok(link) = RegistryLink::try_from(props)
+     {
++        // Enforce one channel per app stream: if this app is already mapped to a
++        // Pipeweaver/session target, drop links that go anywhere else (WirePlumber
++        // can leave the default-sink link when target.object changes).
++        let drop = app_link_violates_exclusivity(store, id, &link);
+         store.unmanaged_link_add(id, link);
++        if drop {
++            debug!(
++                "Dropping unmanaged link {id} that violates exclusive app routing"
++            );
++            registry.destroy_global(id);
++            store.unmanaged_link_remove(id);
++        }
+     }
+ }
+ 
++/// Returns true when `link` connects an application node that already has a mapped
++/// target to some other peer (so the link should be destroyed).
++fn app_link_violates_exclusivity(store: &Store, _link_id: u32, link: &RegistryLink) -> bool {
++    for app_id in [link.output_node, link.input_node] {
++        let Some(keep_peer) = store.exclusive_peer_for_app(app_id) else {
++            continue;
++        };
++        let peer = if link.output_node == app_id {
++            link.input_node
++        } else if link.input_node == app_id {
++            link.output_node
++        } else {
++            continue;
++        };
++        if peer != keep_peer {
++            return true;
++        }
++    }
++    false
++}
++
++/// Link ids touching `app_id` whose other end is not `keep_peer` (when set).
++/// When `keep_peer` is None, every link touching the app is returned.
++pub(crate) fn unmanaged_link_ids_to_drop(
++    links: &[(u32, &RegistryLink)],
++    app_id: u32,
++    keep_peer: Option<u32>,
++) -> Vec<u32> {
++    links
++        .iter()
++        .filter_map(|&(id, link)| {
++            let touches = link.input_node == app_id || link.output_node == app_id;
++            if !touches {
++                return None;
++            }
++            match keep_peer {
++                Some(peer) if link.input_node == peer || link.output_node == peer => None,
++                _ => Some(id),
++            }
++        })
++        .collect()
++}
++
+ #[derive(Debug, PartialEq)]
+ pub(crate) struct RegistryLink {
+     pub(crate) object_serial: u32,
+@@ -58,3 +118,37 @@ impl TryFrom<&DictRef> for RegistryLink {
+         })
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn link(id_serial: u32, output: u32, input: u32) -> RegistryLink {
++        RegistryLink {
++            object_serial: id_serial,
++            input_node: input,
++            input_port: 0,
++            output_node: output,
++            output_port: 0,
++        }
++    }
++
++    #[test]
++    fn drops_links_to_other_peers_keeps_mapped_channel() {
++        let system = link(1, 100, 1); // app 100 -> system 1
++        let music = link(2, 100, 2); // app 100 -> music 2
++        let other = link(3, 200, 1); // unrelated
++        let links = vec![(10, &system), (11, &music), (12, &other)];
++        let drop = unmanaged_link_ids_to_drop(&links, 100, Some(2));
++        assert_eq!(drop, vec![10]);
++    }
++
++    #[test]
++    fn drops_all_when_no_keep_peer() {
++        let a = link(1, 100, 1);
++        let b = link(2, 100, 2);
++        let links = vec![(10, &a), (11, &b)];
++        let drop = unmanaged_link_ids_to_drop(&links, 100, None);
++        assert_eq!(drop, vec![10, 11]);
++    }
++}
+diff --git a/pipewire/src/registry/metadata.rs b/pipewire/src/registry/metadata.rs
+index 10fe2b0..7afd802 100644
+--- a/pipewire/src/registry/metadata.rs
++++ b/pipewire/src/registry/metadata.rs
+@@ -1,5 +1,7 @@
+ use crate::default_device::DefaultDefinition;
++use crate::registry::link::unmanaged_link_ids_to_drop;
+ use crate::store::{Store, TargetType};
++use log::debug;
+ use pipewire::metadata::{Metadata, MetadataListener};
+ use pipewire::registry::{GlobalObject, RegistryRc};
+ use pipewire::spa::utils::dict::DictRef;
+@@ -19,6 +21,7 @@ pub fn handle_metadata(
+             let proxy: Option<Metadata> = registry.bind(global).ok();
+             if let Some(metadata) = proxy {
+                 let listen_store = listener_store.clone();
++                let listen_registry = registry.clone();
+                 let listener = metadata
+                     .add_listener_local()
+                     .property(move |subject, key, _type, value| {
+@@ -29,6 +32,11 @@ pub fn handle_metadata(
+                                     subject,
+                                     TargetType::Serial(target),
+                                 );
++                                drop_non_exclusive_app_links(
++                                    &listen_store,
++                                    &listen_registry,
++                                    subject,
++                                );
+                             }
+                         }
+                         if key == Some("target.node") {
+@@ -38,6 +46,11 @@ pub fn handle_metadata(
+                                     subject,
+                                     TargetType::Node(target),
+                                 );
++                                drop_non_exclusive_app_links(
++                                    &listen_store,
++                                    &listen_registry,
++                                    subject,
++                                );
+                             }
+                         }
+                         if key == Some("default.audio.sink")
+@@ -128,3 +141,29 @@ pub(crate) struct MetadataStore {
+     pub(crate) metadata: Metadata,
+     pub(crate) _listener: MetadataListener,
+ }
++
++/// After an app stream's target.object / target.node is set, drop any unmanaged
++/// links that still point at a different peer so it only plays on one channel.
++fn drop_non_exclusive_app_links(
++    store: &RefCell<Store>,
++    registry: &RegistryRc,
++    app_id: u32,
++) {
++    let to_drop = {
++        let store = store.borrow();
++        let Some(keep_peer) = store.exclusive_peer_for_app(app_id) else {
++            return;
++        };
++        let list: Vec<(u32, &crate::registry::link::RegistryLink)> = store
++            .get_unmanaged_links()
++            .iter()
++            .map(|(&id, link)| (id, link))
++            .collect();
++        unmanaged_link_ids_to_drop(&list, app_id, Some(keep_peer))
++    };
++    for id in to_drop {
++        debug!("Dropping unmanaged link {id} after target change on app {app_id}");
++        registry.destroy_global(id);
++        store.borrow_mut().unmanaged_link_remove(id);
++    }
++}
+diff --git a/pipewire/src/registry/mod.rs b/pipewire/src/registry/mod.rs
+index 3a118c2..1e3cd06 100644
+--- a/pipewire/src/registry/mod.rs
++++ b/pipewire/src/registry/mod.rs
+@@ -111,7 +111,10 @@ impl PipewireRegistry {
+                     }
+ 
+                     ObjectType::Port => handle_port(id, global, &mut store),
+-                    ObjectType::Link => handle_link(id, global, &mut store),
++                    ObjectType::Link => {
++                        let reg = registry.clone();
++                        handle_link(id, global, &mut store, &reg);
++                    }
+                     ObjectType::Factory => handle_factory(id, global, &mut store),
+ 
+                     ObjectType::Client => {
+diff --git a/pipewire/src/store/unmanaged/client/node.rs b/pipewire/src/store/unmanaged/client/node.rs
+index e43594e..57e10e2 100644
+--- a/pipewire/src/store/unmanaged/client/node.rs
++++ b/pipewire/src/store/unmanaged/client/node.rs
+@@ -83,6 +83,19 @@ impl Store {
+         }
+     }
+ 
++    /// PipeWire node id of the mapped channel for this app stream, if any.
++    /// Used to keep each stream linked to only that channel.
++    pub fn exclusive_peer_for_app(&self, app_id: u32) -> Option<u32> {
++        let node = self.unmanaged_client_nodes.get(&app_id)?;
++        match node.media_target.as_ref()? {
++            Some(NodeTarget::Node(ulid)) => {
++                self.managed_nodes.get(ulid).and_then(|n| n.pw_id)
++            }
++            Some(NodeTarget::UnmanagedNode(id)) => Some(*id),
++            None => None,
++        }
++    }
++
+     pub fn unmanaged_client_node_set_target(&mut self, id: u32, target: TargetType) {
+         // So we need to locate the target, which might be tricky as the target is passed as an
+         // object serial, and not a node id, meaning we need to do some digging.
