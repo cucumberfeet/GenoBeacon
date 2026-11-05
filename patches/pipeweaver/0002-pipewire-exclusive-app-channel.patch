@@ -228,7 +228,7 @@ index 522a725..561e320 100644
 +    }
 +}
 diff --git a/pipewire/src/registry/metadata.rs b/pipewire/src/registry/metadata.rs
-index 10fe2b0..1a3638a 100644
+index 10fe2b0..7afd802 100644
 --- a/pipewire/src/registry/metadata.rs
 +++ b/pipewire/src/registry/metadata.rs
 @@ -1,5 +1,7 @@
@@ -271,6 +271,36 @@ index 10fe2b0..1a3638a 100644
                              }
                          }
                          if key == Some("default.audio.sink")
+@@ -128,3 +141,29 @@ pub(crate) struct MetadataStore {
+     pub(crate) metadata: Metadata,
+     pub(crate) _listener: MetadataListener,
+ }
++
++/// After an app stream's target.object / target.node is set, drop any unmanaged
++/// links that still point at a different peer so it only plays on one channel.
++fn drop_non_exclusive_app_links(
++    store: &RefCell<Store>,
++    registry: &RegistryRc,
++    app_id: u32,
++) {
++    let to_drop = {
++        let store = store.borrow();
++        let Some(keep_peer) = store.exclusive_peer_for_app(app_id) else {
++            return;
++        };
++        let list: Vec<(u32, &crate::registry::link::RegistryLink)> = store
++            .get_unmanaged_links()
++            .iter()
++            .map(|(&id, link)| (id, link))
++            .collect();
++        unmanaged_link_ids_to_drop(&list, app_id, Some(keep_peer))
++    };
++    for id in to_drop {
++        debug!("Dropping unmanaged link {id} after target change on app {app_id}");
++        registry.destroy_global(id);
++        store.borrow_mut().unmanaged_link_remove(id);
++    }
++}
 diff --git a/pipewire/src/registry/mod.rs b/pipewire/src/registry/mod.rs
 index 3a118c2..1e3cd06 100644
 --- a/pipewire/src/registry/mod.rs
